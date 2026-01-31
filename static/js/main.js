@@ -52,7 +52,7 @@ function updateThemeIcon(theme) {
 /* --- CV Builder Logic --- */
 function updateCV() {
     // Basic mapping of ID -> ID
-    const fields = ['Name', 'Title', 'Email', 'Phone', 'Summary', 'ExpRole', 'ExpCompany', 'ExpDesc', 'EduSchool', 'EduMajor'];
+    const fields = ['Name', 'Title', 'Email', 'Phone', 'Summary', 'ExpRole', 'ExpCompany', 'ExpDesc', 'EduSchool', 'EduMajor', 'Location'];
 
     fields.forEach(field => {
         const input = document.getElementById(`cv${field}`);
@@ -61,6 +61,16 @@ function updateCV() {
             preview.textContent = input.value;
         }
     });
+
+    // Handle Skills separately (render as badges)
+    const skillsInput = document.getElementById('cvSkills');
+    const skillsPreview = document.getElementById('prevSkills');
+    if (skillsInput && skillsPreview) {
+        const skills = skillsInput.value.split(',').map(s => s.trim()).filter(s => s);
+        skillsPreview.innerHTML = skills.map(skill =>
+            `<span class="badge rounded-pill px-3 py-2" style="background: rgba(102, 126, 234, 0.1); color: #667eea;">${skill}</span>`
+        ).join('');
+    }
 }
 
 /* --- Navigation & Routing --- */
