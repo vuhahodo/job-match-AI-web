@@ -1,4 +1,4 @@
-// Color scheme for node types (similar to nckh_group_2.py)
+// Color scheme for node types – matches Matplotlib palette
 const NODE_COLOR_MAP = {
     "User": "#FF7043",
     "JobPosting": "#FFA726",
@@ -12,7 +12,7 @@ const NODE_COLOR_MAP = {
     "SkillRaw": "#FFEB3B"
 };
 
-// Important edges for highlighting (similar to nckh_group_2.py)
+// Important edges for highlighting
 const IMPORTANT_EDGES = {
     "MATCHES_JOB": true,
     "SIMILAR_TO": true,
@@ -24,7 +24,6 @@ const IMPORTANT_EDGES = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Only initialize when graph tab is visible
     const graphTab = document.querySelector('[data-tab="graph"]');
     if (graphTab) {
         graphTab.addEventListener('click', initializeGraph);
@@ -46,7 +45,6 @@ function initGraphTab() {
 document.addEventListener('DOMContentLoaded', initGraphTab);
 
 async function initializeGraph(force = false) {
-    // Check if force is actually a boolean true (not an event object)
     const shouldForce = force === true;
 
     if (!shouldForce && graphInitialized && network) {
@@ -70,7 +68,6 @@ async function initializeGraph(force = false) {
         const response = await fetch('/graph');
 
         if (!response.ok) {
-            const errorText = await response.text();
             graphContainer.innerHTML = `<div style="padding: 20px; color: red;">Failed to load graph (${response.status}).</div>`;
             return;
         }
@@ -91,18 +88,21 @@ async function initializeGraph(force = false) {
 
         graphContainer.innerHTML = '';
 
-        // Process nodes with enhanced styling
+        // ── Scale factor for layout ──
+        const SCALE = 550;
+
+        // ── Process nodes ──
         const visNodes = data.nodes.map(node => {
             const nodeType = node.ntype || "Other";
             const color = NODE_COLOR_MAP[nodeType] || "#E0E0E0";
 
-            // Calculate node size based on type
-            let size = 25;
-            if (node.id.includes("user")) size = 50;
-            if (nodeType === "JobPosting") size = 40;
-            if (nodeType === "Skill") size = 28;
-            if (nodeType === "Company") size = 32;
-            if (nodeType === "Location") size = 28;
+            // Node size by type
+            let size = 22;
+            if (nodeType === "User")       size = 45;
+            if (nodeType === "JobPosting") size = 35;
+            if (nodeType === "Skill")      size = 24;
+            if (nodeType === "Company")    size = 28;
+            if (nodeType === "Location")   size = 24;
 
             return {
                 id: node.id,
@@ -110,119 +110,89 @@ async function initializeGraph(force = false) {
                 title: `${nodeType}: ${node.label}`,
                 color: {
                     background: color,
-                    border: nodeType === 'User' ? '#d32f2f' : '#2055e9ff',
-                    highlight: {
-                        background: color,
-                        border: '#14f30c'
-                    }
+                    border: nodeType === 'User' ? '#d32f2f' : '#555',
+                    highlight: { background: color, border: '#14f30c' }
                 },
                 size: size,
-                x: node.x * 500,
-                y: node.y * 500,
+                // Flip Y so that the orientation matches the Matplotlib image
+                x:  node.x * SCALE,
+                y: -node.y * SCALE,
                 fixed: { x: true, y: true },
                 font: {
                     size: nodeType === 'User' ? 16 : (nodeType === 'JobPosting' ? 13 : 11),
                     color: '#000',
-                    multi: false,
-                    face: 'Arial'
+                    face: 'Arial',
+                    background: 'rgba(255, 255, 255, 0.85)'
                 },
-                borderWidth: nodeType === 'User' ? 4 : 2,
+                borderWidth: nodeType === 'User' ? 3 : 2,
                 shadow: {
                     enabled: true,
-                    color: 'rgba(0,0,0,0.25)',
-                    size: 12,
-                    x: 5,
-                    y: 5
+                    color: 'rgba(0,0,0,0.15)',
+                    size: 8,
+                    x: 3,
+                    y: 3
                 }
             };
         });
 
-        // Process edges with detailed styling
+        // ── Process edges ──
         const visEdges = data.links.map(edge => {
-            const isImportant = IMPORTANT_EDGES[edge.rel];
             const rel = edge.rel.replace(/_/g, ' ');
 
-            // Build label with score/prob if available
+            // Label: show score for MATCH / SIMILAR, show rel name for others
             let label = '';
-            if (edge.rel === 'MATCHES_JOB' || edge.rel === 'SIMILAR_TO') {
-                if (edge.score !== null && edge.score !== undefined) {
-                    const scoreType = edge.rel === 'MATCHES_JOB' ? 'MATCH' : 'SIMILAR';
-                    label = `${scoreType} (${edge.score.toFixed(3)})`;
-                }
+            if (edge.rel === 'MATCHES_JOB' && edge.score != null) {
+                label = `MATCH (${edge.score.toFixed(3)})`;
+            } else if (edge.rel === 'SIMILAR_TO' && edge.score != null) {
+                label = `SIMILAR (${edge.score.toFixed(3)})`;
             } else {
                 label = rel;
             }
-            // let label = '';
 
-            // CHỈ hiện số cho 2 loại cạnh này
-            // if (edge.rel === 'MATCHES_JOB') {
-            //     if (edge.score !== null && edge.score !== undefined) {
-            //         label = `MATCH (${edge.score.toFixed(3)})`;
-            //     }
-            // } 
-            // else if (edge.rel === 'SIMILAR_TO') {
-            //     if (edge.score !== null && edge.score !== undefined) {
-            //         label = `SIMILAR (${edge.score.toFixed(3)})`;
-            //     }
-            // }
-            // // CÁC CẠNH CÒN LẠI: CHỈ HIỆN TÊN REL
-            // else {
-            //     label = rel;
-            // }
-
-            // Edge styling based on relationship type
-            let color = '#999';
+            // Style per edge type
+            let color = '#aaa';
             let width = 1;
             let fontSize = 9;
-            let dashes = true;
+            let dashes = [5, 5];  // default: thin dashed
 
             if (edge.rel === 'MATCHES_JOB') {
                 color = '#000';
-                width = 4;
+                width = 5;
                 fontSize = 12;
-                dashes = false;
+                dashes = false;           // solid thick
             } else if (edge.rel === 'SIMILAR_TO') {
-                color = '#666';
+                color = '#555';
                 width = 3;
                 fontSize = 11;
-                dashes = false;
-            } else if (['HAS_SKILL', 'REQUIRES_SKILL', 'POSTED_BY', 'LOCATED_IN', 'HAS_ROLE_CANONICAL'].includes(edge.rel)) {
-                color = '#777';
-                width = 1.5;
-                fontSize = 10;
-                dashes = true;
+                dashes = false;           // solid medium
+            } else {
+                // All other relationships: thin dashed grey
+                color = '#999';
+                width = 1.2;
+                fontSize = 9;
+                dashes = [5, 5];
             }
 
             return {
                 from: edge.source,
                 to: edge.target,
                 label: label,
-                title: `${rel}`,
+                title: rel,
                 font: {
                     align: 'middle',
                     size: fontSize,
-                    bold: isImportant,
                     color: '#333',
-                    face: 'Arial'
+                    face: 'Arial',
+                    background: '#ffffff',
+                    strokeWidth: 0
                 },
-                color: {
-                    color: color,
-                    highlight: '#f00'
-                },
+                color: { color: color, highlight: '#e53935' },
                 width: width,
-                arrows: {
-                    to: {
-                        enabled: true,
-                        scaleFactor: 0.8,
-                        type: 'arrow'
-                    }
-                },
+                // No arrows – undirected look like Matplotlib
+                arrows: { to: { enabled: false } },
                 dashes: dashes,
-                smooth: {
-                    enabled: true,
-                    type: 'continuous',
-                    roundness: 0.4
-                }
+                // Straight lines, no curves
+                smooth: false
             };
         });
 
@@ -231,14 +201,10 @@ async function initializeGraph(force = false) {
 
         const networkData = { nodes, edges };
         const options = {
-            layout: {
-                hierarchical: false
-            },
+            layout: { hierarchical: false },
             physics: {
                 enabled: false,
-                stabilization: {
-                    iterations: 0
-                }
+                stabilization: { iterations: 0 }
             },
             interaction: {
                 hover: true,
@@ -253,20 +219,17 @@ async function initializeGraph(force = false) {
                 borderWidth: 2,
                 shadow: {
                     enabled: true,
-                    color: 'rgba(0,0,0,0.2)',
-                    size: 10,
-                    x: 5,
-                    y: 5
+                    color: 'rgba(0,0,0,0.12)',
+                    size: 8,
+                    x: 3,
+                    y: 3
                 }
             },
             edges: {
                 shadow: false,
                 font: {
                     strokeWidth: 0,
-                    background: {
-                        enabled: true,
-                        color: '#ffffff'
-                    }
+                    background: '#ffffff'
                 }
             }
         };

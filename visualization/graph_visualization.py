@@ -4,7 +4,7 @@ import numpy as np
 import networkx as nx
 from collections import defaultdict
 from config import TOPK_USER_JOB, TOPK_SIMILAR
-from graph_builder import build_strict_user_job_graph
+from kg.user_builder import build_strict_user_job_graph
 
 
 def clean_focus_layout(H, center_node):

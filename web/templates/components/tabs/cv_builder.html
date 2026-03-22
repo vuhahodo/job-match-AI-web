@@ -2,7 +2,7 @@
 <div class="tab-pane fade" id="cv-builder" role="tabpanel">
     <!-- Hero Header -->
     <div class="cv-builder-hero text-center py-5 mb-4 rounded-4"
-        style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        style="background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);">
         <div class="container">
             <h2 class="text-white fw-bold mb-2">
                 <i class="bi bi-file-earmark-person me-2"></i>AI-Powered CV Builder
@@ -20,9 +20,15 @@
                         <h5 class="fw-bold mb-0">
                             <i class="bi bi-pencil-square text-primary me-2"></i>CV Editor
                         </h5>
-                        <span class="badge bg-success-soft text-success rounded-pill px-3 py-2">
-                            <i class="bi bi-check-circle me-1"></i>Auto-saving
-                        </span>
+                        <div class="d-flex gap-2 align-items-center">
+                            <button class="btn btn-sm btn-outline-primary rounded-pill px-3"
+                                onclick="autoFillCVBuilder()" title="Fill form with your uploaded CV data">
+                                <i class="bi bi-magic me-1"></i>Auto-fill from CV
+                            </button>
+                            <span class="badge bg-success-soft text-success rounded-pill px-3 py-2">
+                                <i class="bi bi-check-circle me-1"></i>Auto-saving
+                            </span>
+                        </div>
                     </div>
                 </div>
                 <div class="card-body p-4" style="max-height: 70vh; overflow-y: auto;">
@@ -295,7 +301,8 @@
                 <!-- Action Buttons -->
                 <div class="card-footer bg-white border-0 p-4">
                     <div class="d-grid gap-2">
-                        <button class="btn btn-primary btn-lg rounded-pill fw-bold" onclick="window.print()">
+                        <button class="btn btn-primary btn-lg rounded-pill fw-bold" onclick="downloadCV()"
+                            id="downloadPdfBtn">
                             <i class="bi bi-download me-2"></i>Download PDF
                         </button>
                         <div class="row g-2">
@@ -339,7 +346,7 @@
                     style="width: 100%; max-width: 600px; min-height: 800px; border-radius: 8px; overflow: hidden;">
 
                     <div class="cv-header text-white p-4 position-relative"
-                        style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        style="background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);">
                         <div class="position-absolute"
                             style="top: 0; right: 0; width: 150px; height: 150px; background: rgba(255,255,255,0.1); border-radius: 0 0 0 100%;">
                         </div>
@@ -639,68 +646,63 @@
         border-color: #667eea !important;
         color: white !important;
     }
-
-    @media print {
-
-        /* Hide everything except the CV template */
-        body * {
-            visibility: hidden;
-        }
-
-        .cv-template:not(.d-none),
-        .cv-template:not(.d-none) * {
-            visibility: visible !important;
-        }
-
-        .cv-template:not(.d-none) {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
-            margin: 0 !important;
-        }
-
-        /* Hide specific elements */
-        .cv-builder-hero,
-        .col-lg-5,
-        .preview-header,
-        .cv-preview-wrapper,
-        nav,
-        header,
-        footer,
-        .navbar,
-        .tab-content>*:not(#cv-builder),
-        #templateSelector {
-            display: none !important;
-        }
-
-        /* Ensure colors print correctly */
-        .cv-header,
-        .cv-template-creative .col-4 {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-            color-adjust: exact !important;
-        }
-
-        /* Reset container */
-        .col-lg-7 {
-            width: 100% !important;
-            padding: 0 !important;
-            margin: 0 !important;
-        }
-
-        /* A4 size */
-        @page {
-            size: A4;
-            margin: 0;
-        }
-    }
 </style>
 
 <script>
+    // Auto-fill CV Builder from uploaded CV data
+    async function autoFillCVBuilder() {
+        try {
+            const response = await fetch('/api/cv-data');
+            const data = await response.json();
+
+            if (!data.active) {
+                showToast('Warning', 'Please upload your CV first on the Scan CV page.', 'warning');
+                return;
+            }
+
+            // Fill form fields with extracted data
+            const fieldMap = {
+                'cvName': data.name,
+                'cvTitle': data.title,
+                'cvEmail': data.email,
+                'cvPhone': data.phone,
+                'cvLinkedin': data.linkedin,
+                'cvLocation': data.location,
+                'cvSummary': data.summary,
+                'cvSkills': data.skills,
+                'cvExpRole': data.exp_role,
+                'cvExpCompany': data.exp_company,
+                'cvExpDesc': data.exp_desc,
+                'cvEduSchool': data.edu_school,
+                'cvEduMajor': data.edu_major,
+            };
+
+            let filledCount = 0;
+            for (const [id, value] of Object.entries(fieldMap)) {
+                if (value) {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.value = value;
+                        filledCount++;
+                        // Add highlight animation
+                        el.style.transition = 'background-color 0.3s';
+                        el.style.backgroundColor = '#e8f5e9';
+                        setTimeout(() => { el.style.backgroundColor = ''; }, 1500);
+                    }
+                }
+            }
+
+            // Trigger live preview update
+            if (typeof updateAllTemplates === 'function') updateAllTemplates();
+            if (typeof updateCV === 'function') updateCV();
+
+            showToast('Success', `Auto-filled ${filledCount} fields from your CV! Review and edit as needed.`, 'success');
+        } catch (error) {
+            console.error('Auto-fill error:', error);
+            showToast('Error', 'Failed to load CV data. Please try again.', 'danger');
+        }
+    }
+
     // Template switching function
     function switchTemplate(templateName) {
         // Hide all templates
@@ -791,4 +793,99 @@
         if (originalUpdateCV) originalUpdateCV();
         updateAllTemplates();
     };
+
+    // Download CV as PDF function
+    function downloadCV() {
+        const visibleTemplate = document.querySelector('.cv-template:not(.d-none)');
+        if (!visibleTemplate) {
+            showToast('Error', 'No CV template found!');
+            return;
+        }
+
+        const btn = document.getElementById('downloadPdfBtn');
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Preparing PDF...';
+        btn.disabled = true;
+
+        // Clean up any old print containers
+        const oldContainer = document.getElementById('cv-print-container');
+        if (oldContainer) oldContainer.remove();
+        const oldStyle = document.getElementById('cv-print-style');
+        if (oldStyle) oldStyle.remove();
+
+        // 1. Create a dedicated container for printing
+        const printContainer = document.createElement('div');
+        printContainer.id = 'cv-print-container';
+        
+        // Clone the template and enforce A4 dimensions
+        const clonedTemplate = visibleTemplate.cloneNode(true);
+        clonedTemplate.style.width = '210mm';
+        clonedTemplate.style.minHeight = '297mm';
+        clonedTemplate.style.margin = '0 auto';
+        clonedTemplate.style.boxShadow = 'none';
+        clonedTemplate.style.borderRadius = '0';
+        clonedTemplate.style.transform = 'none';
+        
+        printContainer.appendChild(clonedTemplate);
+        document.body.appendChild(printContainer);
+
+        // 2. Inject bulletproof print CSS
+        const printStyle = document.createElement('style');
+        printStyle.id = 'cv-print-style';
+        printStyle.innerHTML = `
+            @media screen {
+                #cv-print-container { display: none !important; }
+            }
+            @media print {
+                /* Hide EVERYTHING in the body except our print container */
+                body > *:not(#cv-print-container):not(#cv-print-style):not(script) {
+                    display: none !important;
+                }
+                
+                body {
+                    background: #fff !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+                
+                #cv-print-container {
+                    display: block !important;
+                    position: absolute !important;
+                    left: 0 !important;
+                    top: 0 !important;
+                    width: 100% !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background: #fff !important;
+                }
+                
+                @page { 
+                    size: A4 portrait; 
+                    margin: 0; 
+                }
+                
+                * { 
+                    -webkit-print-color-adjust: exact !important; 
+                    print-color-adjust: exact !important; 
+                    color-adjust: exact !important; 
+                }
+            }
+        `;
+        document.head.appendChild(printStyle);
+
+        // 3. Wait a tiny bit for the browser to parse the new node/styles, then print
+        setTimeout(() => {
+            window.print();
+            
+            // 4. Cleanup after print dialog opens/closes
+            setTimeout(() => {
+                if (printContainer.parentNode) printContainer.remove();
+                if (printStyle.parentNode) printStyle.remove();
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }, 1000);
+            
+            showToast('Success', 'PDF Print Dialog Opened!', 'success');
+        }, 300);
+    }
 </script>

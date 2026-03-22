@@ -145,24 +145,24 @@ function setAuthState(isLoggedIn) {
 }
 
 /* --- Dashboard Kanban Data --- */
-const KANBAN_DATA = {
-    saved: [
-        { id: 1, title: "Senior AI Engineer", company: "TechCorp", loc: "Remote", date: "2 mins" },
-        { id: 2, title: "Data Scientist", company: "Innovate Inc", loc: "NY", date: "1 day" }
-    ],
-    applied: [
-        { id: 3, title: "Backend Engineer", company: "Amazon", loc: "Seattle", date: "3 days" },
-        { id: 4, title: "ML Researcher", company: "DeepMind", loc: "London", date: "5 days" }
-    ],
-    interview: [
-        { id: 5, title: "Full Stack Dev", company: "Google", loc: "MTV", date: "1 week" }
-    ],
-    offer: [
-        { id: 6, title: "Junior Dev", company: "StartupX", loc: "HCMC", date: "2 weeks" }
-    ]
+// Load from localStorage or use defaults
+const DEFAULT_KANBAN = {
+    saved: [],
+    applied: [],
+    interview: [],
+    offer: []
 };
 
+let KANBAN_DATA = JSON.parse(localStorage.getItem('kanbanData')) || DEFAULT_KANBAN;
+
+function saveKanbanData() {
+    localStorage.setItem('kanbanData', JSON.stringify(KANBAN_DATA));
+}
+
 function loadDashboardMockData() {
+    // Reload from localStorage in case it was updated
+    KANBAN_DATA = JSON.parse(localStorage.getItem('kanbanData')) || DEFAULT_KANBAN;
+
     renderAllColumns();
     setupDragAndDrop();
     renderDashboardStats();
@@ -174,30 +174,60 @@ function renderDashboardStats() {
     const totalApps = KANBAN_DATA.saved.length + KANBAN_DATA.applied.length + KANBAN_DATA.interview.length + KANBAN_DATA.offer.length;
     const statEl = document.getElementById('total-apps-stat');
     if (statEl) statEl.textContent = totalApps;
+
+    // Update other stats
+    const matchesEl = document.querySelector('.display-5.fw-bold.mb-0');
+    const interviewRate = KANBAN_DATA.interview.length + KANBAN_DATA.offer.length;
+    const totalWithApplied = KANBAN_DATA.applied.length + interviewRate;
+    const rate = totalWithApplied > 0 ? Math.round((interviewRate / totalWithApplied) * 100) : 0;
+
+    const rateEl = document.querySelectorAll('.display-5')[3];
+    if (rateEl) rateEl.textContent = rate + '%';
 }
 
-function renderDashboardSkills() {
+async function renderDashboardSkills() {
     const skillContainer = document.getElementById('dashboard-skills');
     if (!skillContainer) return;
 
-    const mockSkills = [
-        { name: 'Python', level: 90, color: 'primary' },
-        { name: 'Data Engineering', level: 75, color: 'info' },
-        { name: 'LLM / AI', level: 85, color: 'warning' },
-        { name: 'SQL Architecture', level: 65, color: 'success' }
-    ];
+    // Try to load real skills from API
+    try {
+        const response = await fetch('/user-skills');
+        const skills = await response.json();
 
-    skillContainer.innerHTML = mockSkills.map(s => `
-        <div class="mb-3">
-            <div class="d-flex justify-content-between small mb-1">
-                <span class="fw-bold">${s.name}</span>
-                <span class="text-muted">${s.level}%</span>
-            </div>
-            <div class="progress" style="height: 6px; background-color: rgba(0,0,0,0.05)">
-                <div class="progress-bar bg-${s.color}" style="width: ${s.level}%"></div>
-            </div>
+        if (skills && skills.length > 0) {
+            // Take top 5 skills and format them
+            const colors = ['primary', 'info', 'warning', 'success', 'danger'];
+            const topSkills = skills.slice(0, 5).map((s, i) => ({
+                name: s.name,
+                level: Math.round(s.probability * 100),
+                color: colors[i % colors.length]
+            }));
+
+            skillContainer.innerHTML = topSkills.map(s => `
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="fw-bold">${s.name}</span>
+                        <span class="text-muted">${s.level}%</span>
+                    </div>
+                    <div class="progress" style="height: 6px; background-color: rgba(0,0,0,0.05)">
+                        <div class="progress-bar bg-${s.color}" style="width: ${s.level}%"></div>
+                    </div>
+                </div>
+            `).join('');
+            return;
+        }
+    } catch (e) {
+        console.log('Using mock skills - no CV uploaded yet');
+    }
+
+    // Fallback to empty state with message
+    skillContainer.innerHTML = `
+        <div class="text-center py-3">
+            <i class="bi bi-upload text-muted" style="font-size: 2rem;"></i>
+            <p class="text-muted small mt-2 mb-0">Upload a CV to see your skill profile</p>
+            <a href="/upload_page" class="btn btn-sm btn-outline-primary mt-2">Upload CV</a>
         </div>
-    `).join('');
+    `;
 }
 
 function renderRecentActivity() {
@@ -292,6 +322,9 @@ function setupDragAndDrop() {
                 item.date = "Just now"; // Update time
                 KANBAN_DATA[targetColKey].unshift(item); // Add to new col
 
+                // Save to localStorage
+                saveKanbanData();
+
                 // Re-render
                 renderAllColumns();
                 setupDragAndDrop(); // Re-attach drag events for new elements
@@ -335,6 +368,10 @@ function handleAddApp(e) {
     };
 
     KANBAN_DATA[status].unshift(newItem);
+
+    // Save to localStorage
+    saveKanbanData();
+
     renderAllColumns();
     setupDragAndDrop();
     renderDashboardStats();
@@ -476,50 +513,122 @@ async function loadResults() {
     container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>';
 
     try {
-        const response = await fetch('/results');
-        const results = await response.json();
+        // Fetch both results and full CV data in parallel
+        const [resultsRes, cvRes] = await Promise.all([
+            fetch('/results'),
+            fetch('/api/cv-full')
+        ]);
+        const results = resultsRes.ok ? await resultsRes.json() : [];
+        const cvData = cvRes.ok ? await cvRes.json() : { active: false };
 
-        if (!Array.isArray(results) || results.length === 0) {
-            // container.innerHTML = '<div class="alert alert-info">No match results yet. Upload a CV to get started.</div>';
-            return;
-        }
+        let html = '';
 
-        let html = `
-            <div class="row g-4 justify-content-center">
-            <div class="col-md-10">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h3 class="fw-bold mb-0">Top AI Recommendations</h3>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="window.location.href='/upload_page'">
-                        <i class="bi bi-arrow-left me-2"></i>Upload New CV
-                    </button>
-                </div>
-        `;
-
-        results.forEach((job, index) => {
+        // ── CV Overview Section ──
+        if (cvData.active) {
             html += `
-                <div class="job-card d-flex align-items-center justify-content-between fade-in" style="animation-delay: ${index * 0.1}s">
-                    <div class="d-flex align-items-center">
-                        <div class="badge-score me-4 fs-5">${(job.score * 100).toFixed(0)}%</div>
-                        <div>
-                            <h5 class="fw-bold mb-1">${job.title}</h5>
-                            <div class="text-secondary mb-1">
-                                <i class="bi bi-building me-2"></i>${job.company}
-                                <span class="mx-2">•</span>
-                                <i class="bi bi-geo-alt me-2"></i>${job.city}
+            <div class="row g-4 justify-content-center mb-4">
+                <div class="col-md-10">
+                    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                        <div class="card-header py-3 px-4 border-0" style="background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="fw-bold text-white mb-0">
+                                    <i class="bi bi-file-earmark-text me-2"></i>CV Scan Results
+                                </h5>
+                                <div class="d-flex gap-2 align-items-center">
+                                    <span class="badge bg-white bg-opacity-25 text-white">
+                                        <i class="bi bi-file-pdf me-1"></i>${cvData.filename || 'CV'}
+                                    </span>
+                                    <span class="badge bg-white bg-opacity-25 text-white">
+                                        ${cvData.char_count.toLocaleString()} chars • ${cvData.line_count} lines
+                                    </span>
+                                </div>
                             </div>
-                            <div class="small text-success">
-                                <i class="bi bi-graph-up-arrow me-1"></i> High text similarity
+                        </div>
+                        <div class="card-body p-4">
+                            <!-- Extracted Info Summary -->
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <h6 class="fw-bold text-muted text-uppercase small mb-3">
+                                        <i class="bi bi-person-circle me-1"></i>Personal Info Detected
+                                    </h6>
+                                    <div class="d-flex flex-column gap-2">
+                                        ${cvData.email ? `<div><i class="bi bi-envelope text-primary me-2"></i><strong>Email:</strong> ${cvData.email}</div>` : ''}
+                                        ${cvData.phone ? `<div><i class="bi bi-phone text-success me-2"></i><strong>Phone:</strong> ${cvData.phone}</div>` : ''}
+                                        ${cvData.role ? `<div><i class="bi bi-briefcase text-warning me-2"></i><strong>Role:</strong> ${cvData.role}</div>` : ''}
+                                        ${cvData.city ? `<div><i class="bi bi-geo-alt text-danger me-2"></i><strong>Location:</strong> ${cvData.city}</div>` : ''}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="fw-bold text-muted text-uppercase small mb-3">
+                                        <i class="bi bi-lightning-fill me-1"></i>Skills Detected (${cvData.skills_count})
+                                    </h6>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        ${cvData.skills.map(s => `<span class="badge bg-primary bg-opacity-10 text-primary px-2 py-1">${s}</span>`).join('')}
+                                        ${cvData.skills_count > 20 ? `<span class="badge bg-secondary bg-opacity-10 text-secondary px-2 py-1">+${cvData.skills_count - 20} more</span>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Full CV Text -->
+                            <div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="fw-bold text-muted text-uppercase small mb-0">
+                                        <i class="bi bi-body-text me-1"></i>Full Extracted Text
+                                    </h6>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleCVText()">
+                                        <i class="bi bi-chevron-down me-1" id="cvTextToggleIcon"></i><span id="cvTextToggleLabel">Show</span>
+                                    </button>
+                                </div>
+                                <div id="cvFullTextBlock" style="display:none;">
+                                    <pre class="p-3 bg-light rounded-3 border" style="white-space: pre-wrap; word-wrap: break-word; max-height: 500px; overflow-y: auto; font-size: 0.85rem; line-height: 1.6;">${escapeHtml(cvData.cv_text)}</pre>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div>
-                        <button class="btn btn-outline-primary btn-sm me-2" onclick="loadJobDetail(${index})">View Analysis</button>
-                        <a href="${job.url}" target="_blank" class="btn btn-primary btn-sm">Apply</a>
-                    </div>
                 </div>
+            </div>`;
+        }
+
+        // ── Job Matches Section ──
+        if (Array.isArray(results) && results.length > 0) {
+            html += `
+                <div class="row g-4 justify-content-center">
+                <div class="col-md-10">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h3 class="fw-bold mb-0">Top AI Recommendations</h3>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="window.location.href='/upload_page'">
+                            <i class="bi bi-arrow-left me-2"></i>Upload New CV
+                        </button>
+                    </div>
             `;
-        });
-        html += '</div></div>';
+
+            results.forEach((job, index) => {
+                html += `
+                    <div class="job-card d-flex align-items-center justify-content-between fade-in" style="animation-delay: ${index * 0.1}s">
+                        <div class="d-flex align-items-center">
+                            <div class="badge-score me-4 fs-5">${(job.score * 100).toFixed(0)}%</div>
+                            <div>
+                                <h5 class="fw-bold mb-1">${job.title}</h5>
+                                <div class="text-secondary mb-1">
+                                    <i class="bi bi-building me-2"></i>${job.company}
+                                    <span class="mx-2">•</span>
+                                    <i class="bi bi-geo-alt me-2"></i>${job.city}
+                                </div>
+                                <div class="small text-success">
+                                    <i class="bi bi-graph-up-arrow me-1"></i> High text similarity
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <button class="btn btn-outline-primary btn-sm me-2" onclick="loadJobDetail(${index})">View Analysis</button>
+                            <a href="${job.url}" target="_blank" class="btn btn-primary btn-sm">Apply</a>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div></div>';
+        }
+
         container.innerHTML = html;
 
         // Also inject into search results just for demo
@@ -528,6 +637,31 @@ async function loadResults() {
     } catch (error) {
         container.innerHTML = `<div class="alert alert-danger">Error loading results: ${error.message}</div>`;
     }
+}
+
+// Toggle full CV text visibility
+function toggleCVText() {
+    const block = document.getElementById('cvFullTextBlock');
+    const icon = document.getElementById('cvTextToggleIcon');
+    const label = document.getElementById('cvTextToggleLabel');
+    if (!block) return;
+
+    if (block.style.display === 'none') {
+        block.style.display = 'block';
+        icon.className = 'bi bi-chevron-up me-1';
+        label.textContent = 'Hide';
+    } else {
+        block.style.display = 'none';
+        icon.className = 'bi bi-chevron-down me-1';
+        label.textContent = 'Show';
+    }
+}
+
+// Escape HTML to prevent XSS in CV text display
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 async function loadJobDetail(index) {
@@ -659,7 +793,8 @@ function showToast(title, message, type = 'primary') {
 /* --- Mock Interview Interaction --- */
 let interviewState = {
     active: false,
-    history: []
+    history: [],
+    questionCount: 0
 };
 
 async function startInterview() {
@@ -695,7 +830,10 @@ async function startInterview() {
     messagesDiv.innerHTML = ''; // Clear start prompt
 
     interviewState.active = true;
+    interviewState.history = [];
+    interviewState.questionCount = 0;
     toggleChatControls(true);
+    updateQuestionCounter(0);
 
     // Initial Greeting from Backend
     const typingId = showTypingIndicator();
@@ -709,17 +847,63 @@ async function startInterview() {
         removeTypingIndicator(typingId);
         if (data.reply) {
             addChatMessage('ai', data.reply);
+            interviewState.history.push({ role: 'ai', content: data.reply });
         }
     } catch (e) {
         removeTypingIndicator(typingId);
-        addChatMessage('ai', "Hello! Let's start the interview. Can you introduce yourself?");
+        const fallback = "Hello! Let's start the interview. Can you introduce yourself?";
+        addChatMessage('ai', fallback);
+        interviewState.history.push({ role: 'ai', content: fallback });
+    }
+}
+
+async function startInterviewWithTopic(topicKey, topicPrompt) {
+    // Start the interview first (get greeting)
+    await startInterview();
+    // Then auto-send the topic as the user's first message
+    if (interviewState.active && topicPrompt) {
+        // Small delay so the greeting appears first
+        setTimeout(async () => {
+            addChatMessage('user', topicPrompt);
+            interviewState.history.push({ role: 'user', content: topicPrompt });
+
+            const typingId = showTypingIndicator();
+            try {
+                const response = await fetch('/interview/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: topicPrompt,
+                        history: interviewState.history,
+                        topic_start: topicKey
+                    })
+                });
+                const data = await response.json();
+                removeTypingIndicator(typingId);
+                if (data.reply) {
+                    addChatMessage('ai', data.reply);
+                    interviewState.history.push({ role: 'ai', content: data.reply });
+                    interviewState.questionCount++;
+                    updateQuestionCounter(interviewState.questionCount);
+                }
+            } catch (e) {
+                removeTypingIndicator(typingId);
+                addChatMessage('ai', "Let's explore that topic. Tell me more about your experience.");
+            }
+        }, 800);
     }
 }
 
 function toggleChatControls(active) {
-    document.getElementById('chat-input').disabled = !active;
-    document.getElementById('chat-send-btn').disabled = !active;
-    if (active) document.getElementById('chat-input').focus();
+    const input = document.getElementById('chat-input');
+    const btn = document.getElementById('chat-send-btn');
+    if (input) { input.disabled = !active; if (active) input.focus(); }
+    if (btn) btn.disabled = !active;
+}
+
+function updateQuestionCounter(count) {
+    const el = document.getElementById('interview-question-count');
+    if (el) el.textContent = count;
 }
 
 async function handleChatSubmit(e) {
@@ -727,16 +911,19 @@ async function handleChatSubmit(e) {
     const input = document.getElementById('chat-input');
     const message = input.value.trim();
 
-    if (!message) return;
+    if (!message || !interviewState.active) return;
 
-    // 1. Add User Message
+    // 1. Add User Message to DOM and history
     addChatMessage('user', message);
+    interviewState.history.push({ role: 'user', content: message });
     input.value = '';
+    interviewState.questionCount++;
+    updateQuestionCounter(interviewState.questionCount);
 
     // 2. Show Typing Indicator
     const typingId = showTypingIndicator();
 
-    // 3. Simulate API / Delay
+    // 3. Call backend with updated history
     try {
         const response = await fetch('/interview/chat', {
             method: 'POST',
@@ -745,20 +932,33 @@ async function handleChatSubmit(e) {
         });
 
         const data = await response.json();
-
-        // Remove typing indicator logic would go here (or just replace it)
         removeTypingIndicator(typingId);
 
         if (data.reply) {
             addChatMessage('ai', data.reply);
+            interviewState.history.push({ role: 'ai', content: data.reply });
+            // If backend says response was too shallow, undo the question counter increment
+            if (data.shallow) {
+                interviewState.questionCount = Math.max(0, interviewState.questionCount - 1);
+                updateQuestionCounter(interviewState.questionCount);
+            }
         } else {
-            addChatMessage('ai', "I'm having trouble connecting to the interview server. Let's try another question.");
+            const fallback = "I'm having trouble connecting. Let's try another question.";
+            addChatMessage('ai', fallback);
+            interviewState.history.push({ role: 'ai', content: fallback });
         }
 
     } catch (err) {
         removeTypingIndicator(typingId);
-        addChatMessage('ai', "Error connecting to AI service.");
+        const errMsg = "Error connecting to AI service. Please try again.";
+        addChatMessage('ai', errMsg);
+        interviewState.history.push({ role: 'ai', content: errMsg });
     }
+}
+
+function formatInterviewText(text) {
+    // Convert **bold** markdown to <strong> tags
+    return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 }
 
 function addChatMessage(role, text) {
@@ -768,15 +968,13 @@ function addChatMessage(role, text) {
 
     bubble.className = `chat-bubble ${role} d-flex flex-column`;
     bubble.innerHTML = `
-        <span>${text}</span>
+        <span>${formatInterviewText(text)}</span>
         <span class="meta">${timestamp}</span>
     `;
 
     messagesDiv.appendChild(bubble);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
-    // Add to history
-    interviewState.history.push({ role, content: text });
+    // Note: history tracking is handled explicitly by each caller
 }
 
 function showTypingIndicator() {
@@ -796,12 +994,81 @@ function removeTypingIndicator(id) {
     if (el) el.remove();
 }
 
-function endInterview() {
+async function endInterview() {
     if (!interviewState.active) return;
 
-    if (confirm("Are you sure you want to end the interview session?")) {
-        interviewState.active = false;
-        toggleChatControls(false);
+    if (!confirm("Are you sure you want to end the interview session?")) return;
+
+    interviewState.active = false;
+    toggleChatControls(false);
+
+    // Fetch summary from backend
+    try {
+        const response = await fetch('/interview/summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ history: interviewState.history })
+        });
+        const summary = await response.json();
+
+        // Build summary card HTML
+        const topicsHtml = summary.topics_covered.map(t =>
+            `<span class="badge bg-primary bg-opacity-10 text-primary me-1 mb-1">${t}</span>`
+        ).join('');
+
+        const skillsHtml = (summary.top_skills || []).slice(0, 6).map(s =>
+            `<span class="badge bg-success bg-opacity-10 text-success me-1 mb-1">${s}</span>`
+        ).join('');
+
+        // Assessment color
+        let assessColor = 'text-warning';
+        let assessIcon = 'bi-exclamation-circle';
+        if (summary.assessment === 'Excellent') { assessColor = 'text-success'; assessIcon = 'bi-check-circle-fill'; }
+        else if (summary.assessment === 'Good') { assessColor = 'text-primary'; assessIcon = 'bi-hand-thumbs-up-fill'; }
+
+        const summaryHtml = `
+            <div class="interview-summary-card">
+                <h6 class="mb-3"><i class="bi bi-clipboard-check me-2"></i>Interview Summary</h6>
+                <div class="row g-3 mb-3">
+                    <div class="col-4 text-center">
+                        <div class="question-counter">${summary.questions_answered}</div>
+                        <small class="text-muted">Questions</small>
+                    </div>
+                    <div class="col-4 text-center">
+                        <div class="question-counter">${summary.avg_response_words}</div>
+                        <small class="text-muted">Avg Words</small>
+                    </div>
+                    <div class="col-4 text-center">
+                        <div class="question-counter ${assessColor}">
+                            <i class="bi ${assessIcon}"></i>
+                        </div>
+                        <small class="text-muted">${summary.assessment}</small>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <small class="fw-bold text-muted d-block mb-1">Topics Covered</small>
+                    ${topicsHtml || '<span class="text-muted small">None</span>'}
+                </div>
+                <div class="mb-2">
+                    <small class="fw-bold text-muted d-block mb-1">Your Key Skills</small>
+                    ${skillsHtml || '<span class="text-muted small">N/A</span>'}
+                </div>
+                <div class="mt-3 p-2 bg-white rounded">
+                    <small class="d-block">${summary.feedback}</small>
+                    <small class="d-block text-muted mt-1">${summary.feedback_vi}</small>
+                </div>
+            </div>
+        `;
+
+        const messagesDiv = document.getElementById('chat-messages');
+        const card = document.createElement('div');
+        card.style.maxWidth = '90%';
+        card.style.alignSelf = 'center';
+        card.innerHTML = summaryHtml;
+        messagesDiv.appendChild(card);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+    } catch (e) {
         addChatMessage('ai', "Thank you for the session! Good luck with your actual interview.");
     }
 }

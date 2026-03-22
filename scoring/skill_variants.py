@@ -5,9 +5,8 @@ import re
 from collections import defaultdict
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from text_processing import norm_text, split_cv_sections, _combine_probs, sid
+from utils.text_processing import norm_text, split_cv_sections, _combine_probs, sid
 from config import SKILL_LEXICON, SECTION_WEIGHT, MIN_KEEP_PROB, CORE_SKILLS_CANON
-from text_processing import sid
 def _compile_skill_patterns(lexicon: dict):
     """Compile skill pattern regexes"""
     comp = {}
