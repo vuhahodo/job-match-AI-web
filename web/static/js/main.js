@@ -155,34 +155,60 @@ const DEFAULT_KANBAN = {
 
 let KANBAN_DATA = JSON.parse(localStorage.getItem('kanbanData')) || DEFAULT_KANBAN;
 
-function saveKanbanData() {
-    localStorage.setItem('kanbanData', JSON.stringify(KANBAN_DATA));
+async function saveKanbanData() {
+    // Sync with server
+    try {
+        await fetch('/api/kanban/update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(KANBAN_DATA)
+        });
+    } catch (e) {
+        console.error('Failed to sync kanban to server:', e);
+        // Fallback to local storage
+        localStorage.setItem('kanbanData', JSON.stringify(KANBAN_DATA));
+    }
 }
 
-function loadDashboardMockData() {
-    // Reload from localStorage in case it was updated
-    KANBAN_DATA = JSON.parse(localStorage.getItem('kanbanData')) || DEFAULT_KANBAN;
+async function loadDashboardData() {
+    try {
+        const response = await fetch('/api/dashboard');
+        const data = await response.json();
+        
+        KANBAN_DATA = data.kanban || DEFAULT_KANBAN;
+        const activities = data.activity || [];
+        const stats = data.stats || {scans: 0, matches: 0};
 
-    renderAllColumns();
-    setupDragAndDrop();
-    renderDashboardStats();
-    renderDashboardSkills();
-    renderRecentActivity();
+        renderAllColumns();
+        setupDragAndDrop();
+        renderDashboardStats(stats);
+        renderDashboardSkills();
+        renderRecentActivity(activities);
+    } catch (e) {
+        console.error('Failed to load dashboard data:', e);
+        // Fallback to mock/local
+        loadDashboardMockData(); 
+    }
 }
 
-function renderDashboardStats() {
+function renderDashboardStats(realStats = null) {
     const totalApps = KANBAN_DATA.saved.length + KANBAN_DATA.applied.length + KANBAN_DATA.interview.length + KANBAN_DATA.offer.length;
     const statEl = document.getElementById('total-apps-stat');
     if (statEl) statEl.textContent = totalApps;
 
-    // Update other stats
-    const matchesEl = document.querySelector('.display-5.fw-bold.mb-0');
-    const interviewRate = KANBAN_DATA.interview.length + KANBAN_DATA.offer.length;
-    const totalWithApplied = KANBAN_DATA.applied.length + interviewRate;
-    const rate = totalWithApplied > 0 ? Math.round((interviewRate / totalWithApplied) * 100) : 0;
+    // Update interview rate
+    const interviewRateCount = KANBAN_DATA.interview.length + KANBAN_DATA.offer.length;
+    const totalWithApplied = KANBAN_DATA.applied.length + interviewRateCount;
+    const rate = totalWithApplied > 0 ? Math.round((interviewRateCount / totalWithApplied) * 100) : 0;
 
-    const rateEl = document.querySelectorAll('.display-5')[3];
-    if (rateEl) rateEl.textContent = rate + '%';
+    const rateEls = document.querySelectorAll('.display-5');
+    if (rateEls[3]) rateEls[3].textContent = rate + '%';
+
+    // Update real stats if provided
+    if (realStats) {
+        if (rateEls[0]) rateEls[0].textContent = realStats.matches || 0;
+        if (rateEls[1]) rateEls[1].textContent = realStats.scans || 0;
+    }
 }
 
 async function renderDashboardSkills() {
@@ -230,16 +256,14 @@ async function renderDashboardSkills() {
     `;
 }
 
-function renderRecentActivity() {
+function renderRecentActivity(activities = []) {
     const activityContainer = document.getElementById('recent-activity-list');
     if (!activityContainer) return;
 
-    const activities = [
-        { type: 'scan', title: 'CV Analyzed', subtitle: 'AI Software Engineer', time: '2 hours ago', icon: 'bi-file-earmark-pdf', color: 'info' },
-        { type: 'move', title: 'Status Update', subtitle: 'Moved Amazon to Applied', time: 'Yesterday', icon: 'bi-arrow-right-circle', color: 'primary' },
-        { type: 'interview', title: 'Interview Scheduled', subtitle: 'Google Cloud Team', time: '2 days ago', icon: 'bi-calendar-check', color: 'warning' },
-        { type: 'builder', title: 'CV Updated', subtitle: 'Added new AWS certificate', time: '3 days ago', icon: 'bi-pencil-square', color: 'success' }
-    ];
+    if (!activities || activities.length === 0) {
+        activityContainer.innerHTML = '<div class="text-center py-4 text-muted small">No recent activity</div>';
+        return;
+    }
 
     activityContainer.innerHTML = activities.map(a => `
         <div class="d-flex gap-3 mb-4">
@@ -311,12 +335,12 @@ function setupDragAndDrop() {
             const originColKey = draggedItem.dataset.origin;
             const targetColId = col.id; // e.g., 'col-applied'
             const targetColKey = targetColId.replace('col-', '');
-            const itemId = parseInt(draggedItem.dataset.id);
+            const itemId = draggedItem.dataset.id; // Keep as string or handle both
 
             if (originColKey === targetColKey) return;
 
             // Move data
-            const itemIndex = KANBAN_DATA[originColKey].findIndex(i => i.id === itemId);
+            const itemIndex = KANBAN_DATA[originColKey].findIndex(i => String(i.id) === String(itemId));
             if (itemIndex > -1) {
                 const [item] = KANBAN_DATA[originColKey].splice(itemIndex, 1);
                 item.date = "Just now"; // Update time
@@ -354,32 +378,41 @@ function setupDragAndDrop() {
         });
     });
 }
-
-function handleAddApp(e) {
+async function handleAddApp(e) {
     e.preventDefault();
     const title = document.getElementById('appTitle').value;
     const company = document.getElementById('appCompany').value;
     const loc = document.getElementById('appLocation').value;
     const status = document.getElementById('appStatus').value;
 
-    const newItem = {
-        id: Date.now(),
-        title, company, loc, date: "Just now"
-    };
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Adding...';
 
-    KANBAN_DATA[status].unshift(newItem);
-
-    // Save to localStorage
-    saveKanbanData();
-
-    renderAllColumns();
-    setupDragAndDrop();
-    renderDashboardStats();
-    renderRecentActivity();
-
-    bootstrap.Modal.getInstance(document.getElementById('addAppModal')).hide();
-    e.target.reset();
-    showToast('Success', 'Application added!', 'success');
+    try {
+        const response = await fetch('/api/kanban/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ title, company, loc, status })
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            // Success - reload dashboard data
+            await loadDashboardData();
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addAppModal'));
+            modal.hide();
+            e.target.reset();
+        }
+    } catch (error) {
+        console.error('Error adding app:', error);
+        alert('Failed to add application. Please try again.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Add to Tracker';
+    }
 }
 
 /* --- Search Mock Logic --- */

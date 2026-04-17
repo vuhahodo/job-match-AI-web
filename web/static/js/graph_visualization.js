@@ -44,6 +44,14 @@ function initGraphTab() {
 
 document.addEventListener('DOMContentLoaded', initGraphTab);
 
+// Simple debounce - prevent spam refresh
+let refreshTimeout = null;
+
+function debounceRefresh() {
+    if (refreshTimeout) clearTimeout(refreshTimeout);
+    refreshTimeout = setTimeout(() => initializeGraph(true), 500);
+}
+
 async function initializeGraph(force = false) {
     const shouldForce = force === true;
 
@@ -58,7 +66,15 @@ async function initializeGraph(force = false) {
     }
 
     if (typeof vis === 'undefined') {
-        graphContainer.innerHTML = '<div style="padding: 20px; color: red;">Visualization library not loaded. Please refresh the page.</div>';
+        graphContainer.innerHTML = `
+            <div style="padding: 20px; text-align: center;">
+                <i class="bi bi-graph-up-arrow fs-1 text-danger mb-3"></i>
+                <h5 style="color: red;">Vis.js library failed to load</h5>
+                <p>Please refresh the page (F5) or check your internet connection.</p>
+                <button class="btn btn-primary btn-sm" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Retry
+                </button>
+            </div>`;
         return;
     }
 

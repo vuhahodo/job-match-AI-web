@@ -9,7 +9,7 @@
         const tab = document.getElementById('dashboard');
         if (tab) tab.classList.add('show', 'active');
         // Trigger load
-        if (typeof loadDashboardMockData === 'function') loadDashboardMockData();
+        if (typeof loadDashboardData === 'function') loadDashboardData();
     });
 </script>
 {% endblock %}

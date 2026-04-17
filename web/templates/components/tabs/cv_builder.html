@@ -22,7 +22,7 @@
                         </h5>
                         <div class="d-flex gap-2 align-items-center">
                             <button class="btn btn-sm btn-outline-primary rounded-pill px-3"
-                                onclick="autoFillCVBuilder()" title="Fill form with your uploaded CV data">
+                                onclick="autoFillCVBuilder();" title="Fill form with your uploaded CV data">
                                 <i class="bi bi-magic me-1"></i>Auto-fill from CV
                             </button>
                             <span class="badge bg-success-soft text-success rounded-pill px-3 py-2">
@@ -56,7 +56,7 @@
                                                 Name</label>
                                             <input type="text"
                                                 class="form-control form-control-lg border-0 bg-light rounded-3"
-                                                id="cvName" oninput="updateCV()" value="Nguyen Van A"
+                                                id="cvName" oninput="updateCV();" value="Nguyen Van A"
                                                 placeholder="Enter your full name">
                                         </div>
                                         <div class="mb-3">
@@ -64,7 +64,7 @@
                                                 Title</label>
                                             <input type="text"
                                                 class="form-control form-control-lg border-0 bg-light rounded-3"
-                                                id="cvTitle" oninput="updateCV()" value="Software Engineer"
+                                                id="cvTitle" oninput="updateCV();" value="Software Engineer"
                                                 placeholder="e.g. Senior Developer">
                                         </div>
                                         <div class="row g-3">
@@ -76,7 +76,7 @@
                                                             class="bi bi-envelope text-muted"></i></span>
                                                     <input type="email"
                                                         class="form-control border-0 bg-light rounded-end-3"
-                                                        id="cvEmail" oninput="updateCV()" value="nguyenvan@email.com">
+                                                        id="cvEmail" oninput="updateCV();" value="nguyenvan@email.com">
                                                 </div>
                                             </div>
                                             <div class="col-6">
@@ -87,7 +87,7 @@
                                                             class="bi bi-phone text-muted"></i></span>
                                                     <input type="text"
                                                         class="form-control border-0 bg-light rounded-end-3"
-                                                        id="cvPhone" oninput="updateCV()" value="0901234567">
+                                                        id="cvPhone" oninput="updateCV();" value="0901234567">
                                                 </div>
                                             </div>
                                         </div>
@@ -100,7 +100,7 @@
                                                             class="bi bi-linkedin text-muted"></i></span>
                                                     <input type="text"
                                                         class="form-control border-0 bg-light rounded-end-3"
-                                                        id="cvLinkedin" oninput="updateCV()"
+                                                        id="cvLinkedin" oninput="updateCV();"
                                                         placeholder="linkedin.com/in/username">
                                                 </div>
                                             </div>
@@ -112,7 +112,7 @@
                                                             class="bi bi-geo-alt text-muted"></i></span>
                                                     <input type="text"
                                                         class="form-control border-0 bg-light rounded-end-3"
-                                                        id="cvLocation" oninput="updateCV()" value="Ho Chi Minh City">
+                                                        id="cvLocation" oninput="updateCV();" value="Ho Chi Minh City">
                                                 </div>
                                             </div>
                                         </div>
@@ -141,13 +141,13 @@
                                         <label class="form-label small fw-semibold text-muted text-uppercase">About
                                             You</label>
                                         <textarea class="form-control border-0 bg-light rounded-3" id="cvSummary"
-                                            rows="4" oninput="updateCV()"
+                                            rows="4" oninput="updateCV();"
                                             placeholder="Write a compelling summary of your professional background...">Experienced software engineer with 5+ years of expertise in AI, machine learning, and full-stack development. Passionate about building scalable web applications and leading high-performance teams.</textarea>
                                         <div class="d-flex align-items-center mt-2">
                                             <small class="text-muted"><i class="bi bi-lightbulb me-1"></i>Pro tip: Keep
                                                 it under 3 sentences</small>
                                             <button class="btn btn-sm btn-outline-primary ms-auto"
-                                                onclick="showToast('AI', 'AI enhancement coming soon!')">
+                                                onclick="showToast('AI', 'AI enhancement coming soon!');">
                                                 <i class="bi bi-stars me-1"></i>AI Enhance
                                             </button>
                                         </div>
@@ -181,12 +181,12 @@
                                             </div>
                                             <div class="mb-2">
                                                 <input type="text" class="form-control border-0 bg-white fw-bold"
-                                                    id="cvExpRole" oninput="updateCV()" value="Senior Developer"
+                                                    id="cvExpRole" oninput="updateCV();" value="Senior Developer"
                                                     placeholder="Position Title">
                                             </div>
                                             <div class="mb-2">
                                                 <input type="text" class="form-control border-0 bg-white"
-                                                    id="cvExpCompany" oninput="updateCV()" value="Tech Solutions Inc."
+                                                    id="cvExpCompany" oninput="updateCV();" value="Tech Solutions Inc."
                                                     placeholder="Company Name">
                                             </div>
                                             <div class="row g-2 mb-2">
@@ -202,13 +202,13 @@
                                                 </div>
                                             </div>
                                             <textarea class="form-control border-0 bg-white" id="cvExpDesc" rows="3"
-                                                oninput="updateCV()"
+                                                oninput="updateCV();"
                                                 placeholder="Describe your responsibilities and achievements...">• Led a team of 5 developers to deliver enterprise solutions
 • Implemented CI/CD pipelines reducing deployment time by 60%
 • Architected microservices handling 1M+ daily requests</textarea>
                                         </div>
                                         <button class="btn btn-outline-primary w-100 rounded-pill"
-                                            onclick="showToast('Feature', 'Multi-entry experience coming soon!')">
+                                            onclick="showToast('Feature', 'Multi-entry experience coming soon!');">
                                             <i class="bi bi-plus-circle me-2"></i>Add Another Position
                                         </button>
                                     </div>
@@ -236,13 +236,13 @@
                                         <div class="education-entry p-3 bg-light rounded-3 mb-3">
                                             <div class="mb-2">
                                                 <input type="text" class="form-control border-0 bg-white fw-bold"
-                                                    id="cvEduSchool" oninput="updateCV()"
+                                                    id="cvEduSchool" oninput="updateCV();"
                                                     value="Ho Chi Minh University of Technology"
                                                     placeholder="University/School">
                                             </div>
                                             <div class="mb-2">
                                                 <input type="text" class="form-control border-0 bg-white"
-                                                    id="cvEduMajor" oninput="updateCV()"
+                                                    id="cvEduMajor" oninput="updateCV();"
                                                     value="Bachelor of Computer Science" placeholder="Degree & Major">
                                             </div>
                                             <div class="row g-2">
@@ -259,7 +259,7 @@
                                             </div>
                                         </div>
                                         <button class="btn btn-outline-primary w-100 rounded-pill"
-                                            onclick="showToast('Feature', 'Multi-entry education coming soon!')">
+                                            onclick="showToast('Feature', 'Multi-entry education coming soon!');">
                                             <i class="bi bi-plus-circle me-2"></i>Add Another Education
                                         </button>
                                     </div>
@@ -287,7 +287,7 @@
                                         <label class="form-label small fw-semibold text-muted text-uppercase">Your
                                             Skills</label>
                                         <textarea class="form-control border-0 bg-light rounded-3" id="cvSkills"
-                                            rows="3" oninput="updateCV()"
+                                            rows="3" oninput="updateCV();"
                                             placeholder="e.g. Python, JavaScript, React, AWS...">Python, JavaScript, React, Node.js, AWS, Docker, PostgreSQL, Machine Learning, TensorFlow, Git</textarea>
                                         <small class="text-muted mt-2 d-block"><i
                                                 class="bi bi-info-circle me-1"></i>Separate skills with commas</small>
@@ -301,20 +301,20 @@
                 <!-- Action Buttons -->
                 <div class="card-footer bg-white border-0 p-4">
                     <div class="d-grid gap-2">
-                        <button class="btn btn-primary btn-lg rounded-pill fw-bold" onclick="downloadCV()"
+                        <button class="btn btn-primary btn-lg rounded-pill fw-bold" onclick="downloadCV();"
                             id="downloadPdfBtn">
                             <i class="bi bi-download me-2"></i>Download PDF
                         </button>
                         <div class="row g-2">
                             <div class="col-6">
                                 <button class="btn btn-outline-secondary w-100 rounded-pill"
-                                    onclick="showToast('Template', 'More templates coming soon!')">
+                                    onclick="showToast('Template', 'More templates coming soon!');">
                                     <i class="bi bi-palette me-1"></i>Templates
                                 </button>
                             </div>
                             <div class="col-6">
                                 <button class="btn btn-outline-secondary w-100 rounded-pill"
-                                    onclick="showToast('Share', 'Sharing feature coming soon!')">
+                                    onclick="showToast('Share', 'Sharing feature coming soon!');">
                                     <i class="bi bi-share me-1"></i>Share
                                 </button>
                             </div>
@@ -330,11 +330,11 @@
                 <h5 class="fw-bold mb-0"><i class="bi bi-eye me-2 text-primary"></i>Live Preview</h5>
                 <div class="btn-group btn-group-sm" role="group" id="templateSelector">
                     <button type="button" class="btn btn-outline-secondary active"
-                        onclick="switchTemplate('modern')">Modern</button>
+                        onclick="switchTemplate('modern');">Modern</button>
                     <button type="button" class="btn btn-outline-secondary"
-                        onclick="switchTemplate('classic')">Classic</button>
+                        onclick="switchTemplate('classic');">Classic</button>
                     <button type="button" class="btn btn-outline-secondary"
-                        onclick="switchTemplate('creative')">Creative</button>
+                        onclick="switchTemplate('creative');">Creative</button>
                 </div>
             </div>
 

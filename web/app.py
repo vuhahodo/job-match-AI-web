@@ -3,6 +3,7 @@
 
 from flask import Flask, render_template, request, jsonify, send_file
 import os
+import re
 import json
 from werkzeug.utils import secure_filename
 import pandas as pd
@@ -60,6 +61,53 @@ state = {
     'valid_job_nodes': None,
 }
 
+DASHBOARD_DATA_FILE = os.path.join(os.path.dirname(__file__), 'data', 'dashboard_data.json')
+
+def load_dashboard_data():
+    if not os.path.exists(DASHBOARD_DATA_FILE):
+        return {
+            "kanban": {"saved": [], "applied": [], "interview": [], "offer": []},
+            "activity": [],
+            "stats": {"scans": 0, "matches": 0}
+        }
+    with open(DASHBOARD_DATA_FILE, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def save_dashboard_data(data):
+    os.makedirs(os.path.dirname(DASHBOARD_DATA_FILE), exist_ok=True)
+    with open(DASHBOARD_DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+def log_activity(atype, title, subtitle):
+    data = load_dashboard_data()
+    icons = {
+        'scan': 'bi-file-earmark-pdf',
+        'move': 'bi-arrow-right-circle',
+        'interview': 'bi-calendar-check',
+        'builder': 'bi-pencil-square',
+        'match': 'bi-lightning-charge'
+    }
+    colors = {
+        'scan': 'info',
+        'move': 'primary',
+        'interview': 'warning',
+        'builder': 'success',
+        'match': 'danger'
+    }
+    
+    from datetime import datetime
+    new_act = {
+        "type": atype,
+        "title": title,
+        "subtitle": subtitle,
+        "time": datetime.now().strftime("%I:%M %p, %b %d"),
+        "icon": icons.get(atype, 'bi-info-circle'),
+        "color": colors.get(atype, 'primary')
+    }
+    data['activity'].insert(0, new_act)
+    data['activity'] = data['activity'][:15] # Keep last 15
+    save_dashboard_data(data)
+
 @app.route('/')
 def index():
     """Home page"""
@@ -105,6 +153,56 @@ def interview_page():
 def salary_page():
     return render_template('pages/salary.html')
 
+# --- Dashboard API ---
+
+@app.route('/api/dashboard')
+def get_dashboard_data():
+    data = load_dashboard_data()
+    # Update stats based on session if needed, or just return persistent ones
+    return jsonify(data)
+
+@app.route('/api/kanban/update', methods=['POST'])
+def update_kanban_state():
+    new_kanban = request.json
+    data = load_dashboard_data()
+    data['kanban'] = new_kanban
+    save_dashboard_data(data)
+    return jsonify({'success': True})
+
+@app.route('/api/kanban/add', methods=['POST'])
+def add_kanban_item():
+    item = request.json # {title, company, loc, status}
+    data = load_dashboard_data()
+    status = item.get('status', 'saved')
+    
+    from datetime import datetime
+    new_card = {
+        "id": "kb_" + datetime.now().strftime("%Y%m%d%H%M%S"),
+        "title": item.get('title'),
+        "company": item.get('company'),
+        "loc": item.get('loc', 'Unknown'),
+        "date": datetime.now().strftime("%b %d, %Y")
+    }
+    
+    if status in data['kanban']:
+        data['kanban'][status].append(new_card)
+        log_activity('move', 'New Application', f"Added {new_card['title']} at {new_card['company']}")
+        save_dashboard_data(data)
+        return jsonify({'success': True, 'item': new_card})
+    return jsonify({'error': 'Invalid status'}), 400
+
+@app.route('/user-skills')
+def get_user_skills():
+    if state.get('user_prob') is None:
+        return jsonify([])
+    # Return sorted skills
+    sorted_skills = sorted(
+        [{'name': k, 'probability': v} for k, v in state['user_prob'].items()],
+        key=lambda x: x['probability'],
+        reverse=True
+    )
+    return jsonify(sorted_skills)
+
 @app.route('/upload', methods=['POST'])
 def upload_files():
     """Handle file uploads"""
@@ -124,64 +222,71 @@ def upload_files():
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(pdf_file.filename))
         pdf_file.save(pdf_path)
 
-        # 1. Load CV text (Speed: depends on PDF size/OCR)
-        cv_text = extract_all_text_from_pdf(pdf_path, verbose=False)
-        state['cv_text'] = cv_text
-        state['cv_filename'] = pdf_file.filename
+        try:
+            # 1. Load CV text
+            cv_text = extract_all_text_from_pdf(pdf_path, verbose=False)
+            state['cv_text'] = cv_text
+            state['cv_filename'] = pdf_file.filename
 
-        # 2. Get pre-computed data from state (Speed: FAST, O(1))
-        job_info = state['job_info']
-        job_nodes = state['job_nodes']
-        valid_job_nodes = state['valid_job_nodes']
-        tfidf = state['tfidf']
-        X = state['X']
-        IDX = state['IDX']
-        
-        # 3. Create a clean working graph from the base job graph (Speed: FAST)
-        G = state['G'].copy()
-        state['current_G'] = G
+            # 2. Get pre-computed data from state
+            job_info = state['job_info']
+            job_nodes = state['job_nodes']
+            valid_job_nodes = state['valid_job_nodes']
+            tfidf = state['tfidf']
+            X = state['X']
+            IDX = state['IDX']
+            
+            # 3. Create a clean working graph
+            G = state['G'].copy()
+            state['current_G'] = G
 
-        # 4. Build user node and extract skills (Speed: moderate, depends on CV)
-        USER_ID, user_prob, user_city, user_detail, user_raw2can_map, user_raw2can_best = \
-            build_user_node(G, cv_text)
+            # 4. Build user node and extract skills
+            USER_ID, user_prob, user_city, user_detail, user_raw2can_map, user_raw2can_best = \
+                build_user_node(G, cv_text)
 
-        state['USER_ID'] = USER_ID
-        state['user_prob'] = user_prob
-        state['user_city'] = user_city
-        state['user_detail'] = user_detail
-        state['user_raw2can_map'] = user_raw2can_map
-        state['user_raw2can_best'] = user_raw2can_best
-        state['user_role_can'] = infer_role_canonical(cv_text)
-        user_exp_min, user_exp_max, _ = parse_year_range(cv_text)
-        state['user_exp_bucket'] = exp_bucket(user_exp_min, user_exp_max) if user_exp_min is not None else "Exp_Unknown"
+            state['USER_ID'] = USER_ID
+            state['user_prob'] = user_prob
+            state['user_city'] = user_city
+            state['user_detail'] = user_detail
+            state['user_raw2can_map'] = user_raw2can_map
+            state['user_raw2can_best'] = user_raw2can_best
+            state['user_role_can'] = infer_role_canonical(cv_text)
+            user_exp_min, user_exp_max, _ = parse_year_range(cv_text)
+            state['user_exp_bucket'] = exp_bucket(user_exp_min, user_exp_max) if user_exp_min is not None else "Exp_Unknown"
 
-        # 5. Transform CV text to TF-IDF (Speed: FAST, O(phrase_len))
-        cv_vec = normalize(tfidf.transform([norm_text(cv_text)]))
-        state['cv_vec'] = cv_vec
+            # 5. Transform CV text to TF-IDF
+            cv_vec = normalize(tfidf.transform([norm_text(cv_text)]))
+            state['cv_vec'] = cv_vec
 
-        # 6. Compute user-job match scores (Speed: moderate, O(N_jobs))
-        scores = compute_user_job_scores(
-            job_nodes, job_info, user_prob, user_city, user_detail,
-            IDX, X, cv_vec, tfidf, state['user_role_can'], 
-            state['user_exp_bucket'], user_raw2can_best, user_raw2can_map
-        )
-        state['scores'] = scores
+            # 6. Compute user-job match scores
+            scores = compute_user_job_scores(
+                job_nodes, job_info, user_prob, user_city, user_detail,
+                IDX, X, cv_vec, tfidf, state['user_role_can'], 
+                state['user_exp_bucket'], user_raw2can_best, user_raw2can_map
+            )
+            state['scores'] = scores
 
-        # 7. Add MATCHES_JOB edges to current graph (Speed: FAST)
-        for job_node, score, explain in scores:
-            G.add_edge(USER_ID, job_node, rel="MATCHES_JOB", score=round(score, 3))
+            # 7. Add MATCHES_JOB edges
+            for job_node, score, explain in scores:
+                G.add_edge(USER_ID, job_node, rel="MATCHES_JOB", score=round(score, 3))
 
-        # Clean up
-        os.remove(pdf_path)
-
-        return jsonify({
-            'success': True,
-            'jobs_count': len(job_nodes),
-            'skills_detected': len(user_prob),
-            'user_city': user_city,
-            'user_role': state['user_role_can'],
-            'cv_filename': pdf_file.filename
-        })
+            return jsonify({
+                'success': True,
+                'jobs_count': len(job_nodes),
+                'skills_detected': len(user_prob),
+                'user_city': user_city,
+                'user_role': state['user_role_can'],
+                'cv_filename': pdf_file.filename
+            })
+        finally:
+            # Log activity and update stats
+            log_activity('scan', 'CV Analyzed', f"Extracted {len(user_prob)} skills from {pdf_file.filename}")
+            db_data = load_dashboard_data()
+            db_data['stats']['scans'] += 1
+            save_dashboard_data(db_data)
+            
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
 
     except Exception as e:
         import traceback
@@ -361,14 +466,29 @@ def statistics():
 #         return jsonify({'error': str(e)}), 500
 @app.route('/graph')
 def graph_data():
-    if state.get('current_G') is None or state.get('cv_text') is None:
-        return jsonify({'error': 'No graph available. Please upload a CV first.'}), 400
+    """Get focused knowledge graph data for visualization.
+    Requires CV upload first to populate user node + MATCHES_JOB edges.
+    Returns nodes/links with pre-computed positions.
+    """
+    # More specific state checks
+    if state.get('cv_text') is None:
+        return jsonify({'error': 'No CV uploaded yet. Please upload your CV first to generate the knowledge graph.'}), 400
+    if state.get('USER_ID') is None:
+        return jsonify({'error': 'User node not created. CV processing incomplete.'}), 400
+    if state.get('current_G') is None:
+        return jsonify({'error': 'Graph state missing. Try re-uploading your CV.'}), 400
 
     try:
+        import logging
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger(__name__)
+        
         G = state['current_G']
-        USER_ID = state.get('USER_ID')
+        USER_ID = state['USER_ID']  # Safe now due to prior checks
 
-        # --- chọn center node (giữ logic cũ của bạn)
+        logger.info(f"Generating graph for USER_ID={USER_ID}, G.nodes={len(G.nodes())}")
+        
+        # Center on user node
         center_node = USER_ID
 
         # --- build focus subgraph (logic chuẩn của bạn)
@@ -1098,7 +1218,7 @@ def featured_jobs():
             skills_list = [s for s in common_skills if s.lower() in req_str.lower()][:3]
         
         jobs.append({
-            'id': row.get('id', ''),
+            'id': row.get('job_id', ''),
             'title': row.get('job_title', 'Unknown Role'),
             'company': row.get('company', 'Unknown Company'),
             'location': row.get('location', 'Vietnam'),
@@ -1245,55 +1365,72 @@ def api_search():
             'type': 'Full-time'
         })
     
+    if output:
+        log_activity('match', 'Global Search', f"Found {total_count} jobs matching '{query}'")
+        db_data = load_dashboard_data()
+        db_data['stats']['matches'] += (1 if offset == 0 else 0) # Only count initial search
+        save_dashboard_data(db_data)
+
     return jsonify({
         'jobs': output,
         'has_more': (offset + limit) < total_count,
         'total': total_count
     })
 
+
 def init_application():
     try:
         excel_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'db_job_tuan.xlsx')
-        if os.path.exists(excel_path):
-            print("🚀 Initializing NCKH Job Matching System...")
-            
-            # 1. Load Excel Data
-            _, df = load_excel_file(excel_path)
-            
-            state['df'] = df
-            
-            # 2. Build Base Job Graph
-            G = nx.DiGraph()
-            init_rdf_graph()
-            job_info = {}
-            job_nodes, job_info = build_job_nodes(G, df, job_info)
-            state['G'] = G
-            state['job_nodes'] = job_nodes
-            state['job_info'] = job_info
-            
-            # 3. Pre-compute TF-IDF for all jobs
-            print("Pre-computing TF-IDF vectors...")
-            valid_job_nodes = [j for j in job_nodes if j in job_info]
-            texts = [job_info[j]["text"] for j in valid_job_nodes]
-            
-            tfidf = TfidfVectorizer(
-                analyzer="char_wb", ngram_range=(3, 5),
-                min_df=1, max_df=1.0, max_features=12000,
-                sublinear_tf=True, lowercase=True
-            )
-            X = tfidf.fit_transform(texts)
-            X = normalize(X)
-            
-            state['tfidf'] = tfidf
-            state['X'] = X
-            state['IDX'] = {j: i for i, j in enumerate(valid_job_nodes)}
-            state['valid_job_nodes'] = valid_job_nodes
-            
-            # 4. Pre-compute Job-to-Job Similarities (SIMILAR_TO edges)
-            print("Pre-calculating job-job similarities...")
-            sim_edge_count = build_job_job_similar_edges(G, valid_job_nodes, job_info, state['IDX'], X)
-            print(f"Added {sim_edge_count} SIMILAR_TO edges.")
-            
-            print("✅ System Ready.")
+        if not os.path.exists(excel_path):
+            print(f"[ERROR] db_job_tuan.xlsx not found at {excel_path}. Please ensure the file exists.")
+            return
+        print("[INFO] Initializing NCKH Job Matching System...")
+        
+        # 1. Load Excel Data
+        _, df = load_excel_file(excel_path)
+        
+        state['df'] = df
+        
+        # 2. Build Base Job Graph
+        G = nx.DiGraph()
+        init_rdf_graph()
+        job_info = {}
+        job_nodes, job_info = build_job_nodes(G, df, job_info)
+        state['G'] = G
+        state['job_nodes'] = job_nodes
+        state['job_info'] = job_info
+        
+        # 3. Pre-compute TF-IDF for all jobs
+        print("Pre-computing TF-IDF vectors...")
+        valid_job_nodes = [j for j in job_nodes if j in job_info]
+        texts = [job_info[j]["text"] for j in valid_job_nodes]
+        
+        tfidf = TfidfVectorizer(
+            analyzer="char_wb", ngram_range=(3, 5),
+            min_df=1, max_df=1.0, max_features=12000,
+            sublinear_tf=True, lowercase=True
+        )
+        X = tfidf.fit_transform(texts)
+        X = normalize(X)
+        
+        state['tfidf'] = tfidf
+        state['X'] = X
+        state['IDX'] = {j: i for i, j in enumerate(valid_job_nodes)}
+        state['valid_job_nodes'] = valid_job_nodes
+        
+        # 4. Pre-compute Job-to-Job Similarities (SIMILAR_TO edges)
+        print("Pre-calculating job-job similarities...")
+        sim_edge_count = build_job_job_similar_edges(G, valid_job_nodes, job_info, state['IDX'], X)
+        print(f"Added {sim_edge_count} SIMILAR_TO edges.")
+        
+        print("[SUCCESS] System Ready. Server starting on http://127.0.0.1:5000")
     except Exception as e:
-        print(f"❌ Error during initialization: {e}")
+        import traceback
+        traceback.print_exc()
+        print(f"[ERROR] Failed to initialize: {e}")
+
+
+if __name__ == "__main__":
+    init_application()
+    app.run(host="127.0.0.1", port=5000, debug=True)
+

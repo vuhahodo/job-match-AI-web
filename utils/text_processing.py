@@ -9,10 +9,12 @@ from config import SKILL_LEXICON, SECTION_HINTS, SECTION_WEIGHT, DETAIL_CUES, VN
 
 # TEXT HELPERS
 def norm_text(t):
-    """Normalize text for comparison"""
+    """Normalize text for comparison, removing accents and handling Vietnamese 'd'"""
     if t is None:
         return ""
-    s = unicodedata.normalize("NFKD", str(t).lower())
+    # Handle Vietnamese 'đ' specifically as it doesn't decompose with NFKD
+    s = str(t).lower().replace('đ', 'd')
+    s = unicodedata.normalize("NFKD", s)
     s = "".join(c for c in s if not unicodedata.combining(c))
     s = re.sub(r"\s+", " ", s).strip()
     return s
@@ -36,39 +38,69 @@ def sid(prefix: str, raw: str, n=8):
     slug = re.sub(r"[^a-z0-9]+", "_", base).strip("_")
     return f"{prefix}_{slug}_{h}"
 
-# Fix: Ensure `sid` function is defined
-def sid(prefix, value):
-    """Generate a unique identifier with a prefix."""
-    return f"{prefix}_{hash(value)}"
-
 # LOCATION PARSING
 def parse_location_city_detail(text: str):
-    """Parse location into city and detail"""
-    s0 = str(text or "").strip()
-    if not s0:
+    """Parse location into city and district/ward from CV header with strict filtering"""
+    # 1. Focus on the header (first 1000 chars) to avoid footer noise
+    full_text = str(text or "").strip()
+    header_text = full_text[:1000]
+    if not header_text:
         return "Unknown", ""
-    s = norm_text(s0).replace(".", " ").replace("-", " ")
+    
+    # 2. Normalize text
+    s = norm_text(header_text).replace(".", " ").replace("-", " ")
     s = re.sub(r"\s+", " ", s).strip()
-    parts = [p.strip() for p in re.split(r"[,;/|]+", s) if p.strip()]
-    if not parts:
-        parts = [s]
-
+    
+    # 3. Try to find a known city alias (primary detection)
     city = None
     for k, v in VN_CITY_ALIASES.items():
         if re.search(rf"(?<!\w){re.escape(k)}(?!\w)", s):
             city = v
             break
 
+    # 4. Split and filter for district/ward info
+    parts = [p.strip() for p in re.split(r"[,;/|]+", s) if p.strip()]
+    
+    # Common geography filler words
+    ignore_words = {"vietnam", "viet nam", "vn", "city", "tp", "phuong", "quan", "huyen"}
+    # CV stop words that are NOT locations
+    stop_words = {"orders", "experience", "education", "certificates", "summary", "profile", "skills", "projects", "academy"}
+    
+    # If no city found in aliasing, try to guess from parts ONLY if they contain a geography cue
     if city is None:
-        tail = parts[-1]
-        city = VN_CITY_ALIASES.get(tail, str(tail).title())
-        parts = parts[:-1]
+        meaningful_parts = [p for p in parts if p not in ignore_words and p not in stop_words and len(p.split()) <= 4]
+        if meaningful_parts:
+            tail = meaningful_parts[-1]
+            tail_lower = tail.lower()
+            
+            # STALKER CHECK: Only accept as a city if it has a cue (like street/district) 
+            # OR if it's already a known alias we somehow missed in the first pass
+            has_cue = any(cue in tail_lower for cue in DETAIL_CUES)
+            
+            city_guess = VN_CITY_ALIASES.get(tail_lower, str(tail).title())
+            # If it's a known alias OR it has a cue AND isn't a stop word
+            if (tail_lower in VN_CITY_ALIASES or has_cue) and tail_lower not in stop_words:
+                if len(city_guess) < 25: 
+                    city = city_guess
+        
+    if city is None:
+        city = "Unknown"
 
+    # 5. Extract District/Ward (Details)
     detail_parts = []
     for p in parts:
-        if any(cue in p for cue in DETAIL_CUES) or len(p) >= 6:
-            detail_parts.append(p)
-    detail = " ".join(detail_parts).strip()
+        p_lower = p.lower()
+        # Avoid picking up stop words as details
+        if p_lower in stop_words:
+            continue
+            
+        # Only keep if it contains a cue and is not the city name itself
+        if any(cue in p_lower for cue in DETAIL_CUES) and p_lower != city.lower():
+            detail_parts.append(p.title())
+            
+    # Keep only the most relevant part (usually the district/ward)
+    detail = ", ".join(detail_parts[:2]).strip() 
+    
     return city, detail
 
 def location_match_score(user_city, user_detail, job_city, job_detail):

@@ -76,21 +76,20 @@ def clean_focus_layout(H, center_node):
         for n in missing:
             pos[n] = sp[n]
 
+    # Input validation
+    if not isinstance(H, nx.DiGraph):
+        raise ValueError("H must be a NetworkX DiGraph")
+    if center_node not in H:
+        raise ValueError(f"center_node {center_node} not in graph")
+    
     return pos
-# graph_visualization.py
-# import math
-# import numpy as np
-# import networkx as nx
-# from collections import defaultdict
-# from config import TOPK_USER_JOB, TOPK_SIMILAR
-# from graph_builder import build_strict_user_job_graph
+"""
+Cleaned graph visualization layout. Positions User + top matching jobs prominently,
+groups other entities (Skills, Companies) in radial patterns. Uses fixed positions 
+for key nodes + spring layout fallback.
+"""
 
-
-# def clean_focus_layout(H, center_node):
-#     pos = {}
-#     pos[center_node] = (0.0, 0.0)
-
-#     if H.nodes[center_node].get("ntype") == "User":
+# Duplicate/commented function removed - only active clean version kept above
 #         recs = [
 #             v for u, v, d in H.edges(data=True)
 #             if u == center_node and d.get("rel") == "MATCHES_JOB"

@@ -17,11 +17,11 @@
                     </p>
                     <div class="d-flex gap-3">
                         <button class="btn btn-light btn-lg px-4 fw-bold text-primary shadow transition-hover"
-                            onclick="window.location.href='{{ url_for('upload_page') }}'">
+                            onclick="window.location.href = '{{ url_for(&#34;upload_page&#34;) }}';">
                             <i class="bi bi-upload me-2"></i>Analyze CV
                         </button>
                         <button class="btn btn-outline-light btn-lg px-4 backdrop-blur"
-                            onclick="window.location.href='{{ url_for('cv_builder') }}'">
+                            onclick="window.location.href = '{{ url_for(&#34;cv_builder&#34;) }}';">
                             <i class="bi bi-file-earmark-text me-2"></i>Build CV
                         </button>
                     </div>
@@ -69,11 +69,11 @@
                         <!-- Connecting Lines (SVG) -->
                         <svg class="position-absolute top-0 start-0 w-100 h-100"
                             style="z-index: 1; opacity: 0.3; pointer-events: none;">
-                            <path d="M100,60 Q200,175 250,175" stroke="white" stroke-width="2" fill="none"
+                            <path d="M80,80 Q150,150 250,175" stroke="white" stroke-width="2" fill="none"
                                 stroke-dasharray="5,5" />
-                            <path d="M400,80 Q300,175 250,175" stroke="white" stroke-width="2" fill="none"
+                            <path d="M450,100 Q350,150 250,175" stroke="white" stroke-width="2" fill="none"
                                 stroke-dasharray="5,5" />
-                            <path d="M380,300 Q300,175 250,175" stroke="white" stroke-width="2" fill="none"
+                            <path d="M420,280 Q350,220 250,175" stroke="white" stroke-width="2" fill="none"
                                 stroke-dasharray="5,5" />
                         </svg>
                     </div>
@@ -208,21 +208,21 @@
                     container.innerHTML = data.jobs.map(job => `
                         <div class="col-md-4">
                             <div class="card h-100 border-0 shadow-sm hover-lift transition-all">
-                                <div class="card-body p-4">
+                                <div class="card-body p-4 d-flex flex-column h-100">
                                     <div class="d-flex justify-content-between mb-3">
                                         <div class="bg-light rounded p-2">
                                             <i class="bi bi-building text-primary fs-4"></i>
                                         </div>
                                         <span class="badge ${job.badge_class} px-3 py-2 rounded-pill">${job.work_type}</span>
                                     </div>
-                                    <h5 class="fw-bold mb-1 text-truncate" title="${job.title}">${job.title}</h5>
+                                    <h5 class="fw-bold mb-1" title="${job.title}">${job.title}</h5>
                                     <p class="text-muted small mb-3">${job.company} • ${job.location}</p>
                                     <div class="d-flex flex-wrap gap-2 mb-3">
                                         ${job.skills.map(skill => `<span class="badge bg-light text-dark fw-normal">${skill}</span>`).join('')}
                                     </div>
-                                    <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                                    <div class="d-flex justify-content-between align-items-center pt-3 border-top mt-auto">
                                         <span class="fw-bold text-dark">${job.salary}</span>
-                                        <a href="${job.url}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill">Apply</a>
+                                        <a href="${job.url || '#'}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill">Apply</a>
                                     </div>
                                 </div>
                             </div>
@@ -252,7 +252,7 @@
         <h2 class="fw-bold mb-3">Ready to find your dream job?</h2>
         <p class="text-muted mb-4 lead">Join thousands of professionals who have advanced their careers with us.</p>
         <button class="btn btn-primary btn-lg rounded-pill px-5 shadow-sm hover-scale"
-            onclick="window.location.href='{{ url_for('upload_page') }}'">
+            onclick="window.location.href = '{{ url_for(&#34;upload_page&#34;) }}';">
             Get Started Now <i class="bi bi-arrow-right ms-2"></i>
         </button>
     </div>

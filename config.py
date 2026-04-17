@@ -72,6 +72,17 @@ VN_CITY_ALIASES = {
     "hai phong": "Hai Phong",
     "binh duong": "Binh Duong",
     "dong nai": "Dong Nai",
+    "vinh": "Vinh",
+    "hue": "Hue",
+    "nha trang": "Nha Trang",
+    "qui nhon": "Qui Nhon",
+    "quynhon": "Qui Nhon",
+    "da lat": "Da Lat",
+    "dalat": "Da Lat",
+    "vung tau": "Vung Tau",
+    "vungtau": "Vung Tau",
+    "buon ma thuot": "Buon Ma Thuot",
+    "bmt": "Buon Ma Thuot",
 }
 
 DETAIL_CUES = ["quan","q","huyen","phuong","duong","street","ward","district","tp","thi xa","thi tran"]

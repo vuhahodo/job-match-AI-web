@@ -1,0 +1,22 @@
+{
+    "kanban": {
+        "saved": [],
+        "applied": [],
+        "interview": [],
+        "offer": []
+    },
+    "activity": [
+        {
+            "type": "system",
+            "title": "Welcome",
+            "subtitle": "Dashboard initialized",
+            "time": "Just now",
+            "icon": "bi-info-circle",
+            "color": "primary"
+        }
+    ],
+    "stats": {
+        "scans": 0,
+        "matches": 0
+    }
+}

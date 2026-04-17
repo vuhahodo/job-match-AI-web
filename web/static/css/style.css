@@ -734,3 +734,43 @@ body {
 .sticky-top {
     z-index: 100 !important;
 }
+
+/* New Utilities & Components */
+.hero-visual {
+    position: relative;
+    width: 100%;
+}
+
+.floating-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1rem;
+    box-shadow: var(--shadow-lg);
+    z-index: 5;
+    transition: all 0.3s ease;
+}
+
+.hover-lift {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.12), 0 8px 16px -4px rgba(0, 0, 0, 0.08);
+}
+
+.hover-scale {
+    transition: transform 0.2s ease;
+}
+
+.hover-scale:hover {
+    transform: scale(1.05);
+}
+
+.transition-all {
+    transition: all 0.3s ease;
+}
+
+.tracking-wider {
+    letter-spacing: 0.05em;
+}
