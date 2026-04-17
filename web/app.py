@@ -59,6 +59,7 @@ state = {
     'IDX': None,
     'cv_vec': None,
     'valid_job_nodes': None,
+    'is_ready': False,  # Tracking initialization
 }
 
 DASHBOARD_DATA_FILE = os.path.join(os.path.dirname(__file__), 'data', 'dashboard_data.json')
@@ -207,6 +208,9 @@ def get_user_skills():
 def upload_files():
     """Handle file uploads"""
     try:
+        if not state.get('is_ready'):
+            return jsonify({'error': 'System is still initializing. Please wait a few moments...'}), 503
+            
         pdf_file = request.files.get('pdf_file')
 
         # Check if PDF file is provided
@@ -317,6 +321,9 @@ def results():
 @app.route('/api/cv-full')
 def cv_full():
     """Return full extracted CV text and structured info"""
+    if not state.get('is_ready'):
+        return jsonify({'active': False, 'initializing': True})
+
     if state.get('cv_text') is None:
         return jsonify({'active': False})
     
@@ -1424,6 +1431,7 @@ def init_application():
         print(f"Added {sim_edge_count} SIMILAR_TO edges.")
         
         print("[SUCCESS] System Ready. Server starting on http://127.0.0.1:5000")
+        state['is_ready'] = True
     except Exception as e:
         import traceback
         traceback.print_exc()

@@ -5,6 +5,7 @@ import re
 from collections import defaultdict
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from functools import lru_cache
 from utils.text_processing import norm_text, split_cv_sections, _combine_probs, sid
 from config import SKILL_LEXICON, SECTION_WEIGHT, MIN_KEEP_PROB, CORE_SKILLS_CANON
 def _compile_skill_patterns(lexicon: dict):
@@ -36,6 +37,7 @@ for canon, aliases in SKILL_LEXICON.items():
 _skill_tfidf = TfidfVectorizer(analyzer='char_wb', ngram_range=(3,5), min_df=1)
 _skill_X = _skill_tfidf.fit_transform(_skill_texts)
 
+@lru_cache(maxsize=4096)
 def best_canonical_match(phrase: str):
     """Find best canonical skill match using TF-IDF"""
     p = norm_text(phrase)

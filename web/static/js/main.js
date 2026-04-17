@@ -6,6 +6,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     setupUploadForm();
     setupSearch();
+    checkSystemStatus(); // New initialization check
     loadDashboardMockData();
 
     // Check local storage for auth state
@@ -144,6 +145,37 @@ function setAuthState(isLoggedIn) {
     }
 }
 
+async function checkSystemStatus() {
+    const uploadBtn = document.querySelector('#uploadForm button[type="submit"]');
+    const statusMsg = document.createElement('div');
+    statusMsg.id = 'system-status-msg';
+    statusMsg.className = 'text-center small text-info mb-3';
+    
+    const form = document.getElementById('uploadForm');
+    if (form && uploadBtn) {
+        form.insertBefore(statusMsg, uploadBtn.parentElement);
+        
+        const check = async () => {
+            try {
+                const res = await fetch('/api/cv-full');
+                const data = await res.json();
+                if (data.initializing) {
+                    uploadBtn.disabled = true;
+                    statusMsg.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Knowledge Graph is initializing... Please wait.';
+                    setTimeout(check, 3000);
+                } else {
+                    uploadBtn.disabled = false;
+                    statusMsg.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> System Ready';
+                    setTimeout(() => { if (statusMsg) statusMsg.remove(); }, 2000);
+                }
+            } catch (e) {
+                setTimeout(check, 5000);
+            }
+        };
+        check();
+    }
+}
+
 /* --- Dashboard Kanban Data --- */
 // Load from localStorage or use defaults
 const DEFAULT_KANBAN = {
@@ -277,6 +309,14 @@ function renderRecentActivity(activities = []) {
         </div>
     `).join('');
 }
+
+function loadDashboardMockData() {
+    renderAllColumns();
+    renderDashboardStats();
+    renderDashboardSkills();
+    renderRecentActivity();
+}
+
 
 function renderAllColumns() {
     renderKanbanColumn('saved', 'col-saved');
@@ -668,7 +708,15 @@ async function loadResults() {
         loadDashboardMockData();
 
     } catch (error) {
-        container.innerHTML = `<div class="alert alert-danger">Error loading results: ${error.message}</div>`;
+        let msg = error.message;
+        if (msg.includes('503')) msg = 'System is still initializing. Please wait and try again.';
+        container.innerHTML = `<div class="alert alert-warning shadow-sm border-0 d-flex align-items-center gap-3">
+            <i class="bi bi-exclamation-triangle-fill fs-4"></i>
+            <div>
+                <div class="fw-bold">Scan Incomplete</div>
+                <div>${msg}</div>
+            </div>
+        </div>`;
     }
 }
 

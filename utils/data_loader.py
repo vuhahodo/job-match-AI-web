@@ -136,6 +136,13 @@ def ocr_pdf_all_pages(pdf_path, dpi=300, lang="vie+eng", verbose=True):
             print("OCR requires pdfplumber and pytesseract")
         return ""
 
+    # Check if tesseract binary is actually available in PATH
+    import shutil
+    if not shutil.which("tesseract"):
+        if verbose:
+            print("[WARNING] Tesseract binary not found in PATH. OCR will be skipped.")
+        return ""
+
     out = []
     try:
         with pdfplumber.open(pdf_path) as pdf:
