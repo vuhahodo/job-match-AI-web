@@ -619,22 +619,33 @@ def _analyze_response(user_msg, cv_skills):
     has_numbers = bool(re.search(r'\d+', user_msg))
     number_context = re.findall(r'(\d+\s*(?:%|percent|users|customers|months|years|team|people|projects|hours|days|times|x|gb|tb|ms|seconds|năm|tháng|người|dự án))', msg_lower)
     
-    # 5. Sentiment / confidence keywords
+    # 5. Detect STAR Method components
+    star_analysis = {
+        'S': bool(re.search(r'\b(at|in|when|during|tại|khi|trong khi|ở)\b.*\b(project|company|company|team|time|dự án|công ty|đội)\b', msg_lower)),
+        'T': bool(re.search(r'\b(task|goal|objective|aim|responsibility|nhiệm vụ|mục tiêu|trách nhiệm)\b', msg_lower)),
+        'A': len(found_actions) >= 2,
+        'R': bool(re.search(r'\b(result|outcome|achieved|success|delivered|kết quả|đạt được|thành công)\b', msg_lower)) or has_numbers
+    }
+    
+    # 6. Sentiment / confidence keywords
     positive_words = ['passionate', 'love', 'enjoy', 'excited', 'proud', 'achieved',
                       'successful', 'thích', 'đam mê', 'tự hào', 'thành công']
-    negative_words = ['struggle', 'difficult', 'challenge', 'hard', 'failed',
-                      'khó', 'thử thách', 'thất bại']
+    negative_words = ['struggle', 'difficult', 'challenge', 'hard', 'failed', 'issue', 'problem',
+                      'khó', 'thử thách', 'thất bại', 'vấn đề', 'trở ngại']
     has_positive = any(w in msg_lower for w in positive_words)
     has_challenge = any(w in msg_lower for w in negative_words)
     
-    # 6. Calculate depth score (0-100)
+    # 7. Calculate scores
     depth = 0
-    depth += min(word_count / 2, 30)           # Max 30 pts for length (60+ words = max)
-    depth += len(mentioned_skills) * 8          # 8 pts per skill mentioned
-    depth += len(found_actions) * 5             # 5 pts per action verb
-    depth += 15 if has_example else 0           # 15 pts for concrete example
-    depth += 10 if has_numbers else 0           # 10 pts for quantitative data
-    depth += 5 if has_positive else 0           # 5 pts for enthusiasm
+    depth += min(word_count / 2, 25)           # Max 25 pts for length
+    depth += len(mentioned_skills) * 10         # 10 pts per skill
+    depth += len(found_actions) * 5             # 5 pts per action
+    depth += 15 if has_example else 0           # 15 pts for example
+    depth += 10 if has_numbers else 0           # 10 pts for numbers
+    
+    # STAR bonus
+    star_score = sum(star_analysis.values()) * 10 # Max 40 pts
+    depth += star_score
     depth = min(int(depth), 100)
     
     return {
@@ -647,6 +658,7 @@ def _analyze_response(user_msg, cv_skills):
         'has_positive': has_positive,
         'has_challenge': has_challenge,
         'depth_score': depth,
+        'star_analysis': star_analysis
     }
 
 
@@ -720,10 +732,19 @@ def _build_acknowledgment(analysis, user_msg):
         en_parts.append("I like that you quantified your impact — that shows strong analytical thinking.")
         vi_parts.append("Tôi thích việc bạn đưa ra con số — điều đó thể hiện tư duy phân tích tốt.")
     
-    # --- Short response coaching ---
-    if word_count < 15 and not skills and not actions:
-        en_parts.append("💡 **Tip**: Try to include specific examples, tools you used, and measurable outcomes in your answers.")
-        vi_parts.append("💡 **Mẹo**: Hãy thử đưa vào ví dụ cụ thể, công cụ đã dùng, và kết quả đo lường được.")
+    # --- STAR Method coaching ---
+    star = analysis.get('star_analysis', {})
+    if not all(star.values()) and word_count > 20:
+        missing = [k for k, v in star.items() if not v]
+        labels = {'S': 'Situation', 'T': 'Task', 'A': 'Action', 'R': 'Result'}
+        missing_labels = [labels[m] for m in missing]
+        
+        if 'R' in missing:
+            en_parts.append("💡 **Tip**: Don't forget to mention the **Result** or impact of your actions.")
+            vi_parts.append("💡 **Mẹo**: Đừng quên nhắc đến **Kết quả** hoặc tác động từ hành động của bạn.")
+        elif 'A' in missing:
+            en_parts.append("💡 **Tip**: I'd love to hear more about the specific **Actions** you personally took.")
+            vi_parts.append("💡 **Mẹo**: Tôi muốn nghe thêm về những **Hành động** cụ thể mà bạn đã trực tiếp thực hiện.")
     
     en = ' '.join(en_parts)
     vi = ' '.join(vi_parts)
@@ -937,32 +958,56 @@ def interview_summary():
     for i in range(min(questions_answered, len(topic_labels))):
         topics.append(topic_labels[i])
     
-    # Calculate avg response length as a proxy for thoroughness
-    avg_words = 0
-    if user_turns:
-        total_words = sum(len(h.get('content', '').split()) for h in user_turns)
-        avg_words = round(total_words / len(user_turns))
+    # 1. Technical Score (Depth)
+    tech_depths = [h.get('analysis', {}).get('depth_score', 0) for h in user_turns if h.get('analysis')]
+    avg_tech = sum(tech_depths)/len(tech_depths) if tech_depths else 0
     
-    # Simple assessment
-    if questions_answered >= 8:
-        assessment = "Excellent"
-        feedback = "You completed a comprehensive interview covering all major areas. Great job!"
-        feedback_vi = "Bạn đã hoàn thành buổi phỏng vấn toàn diện. Rất tốt!"
-    elif questions_answered >= 5:
-        assessment = "Good"
-        feedback = "You covered several important topics. Consider practicing more for a full interview."
-        feedback_vi = "Bạn đã trả lời nhiều câu hỏi quan trọng. Hãy luyện tập thêm cho buổi phỏng vấn đầy đủ."
+    # 2. Communication Score (Word count & Variety)
+    comm_variety = [len(set(h.get('content', '').split())) for h in user_turns]
+    avg_comm = min((sum(comm_variety)/len(comm_variety))/30 * 100, 100) if comm_variety else 0
+    
+    # 3. Confidence/Structure (STAR check)
+    stars_found = 0
+    total_star_possible = questions_answered * 4
+    for h in user_turns:
+        if h.get('analysis') and h.get('analysis').get('star_analysis'):
+            stars_found += sum(h['analysis']['star_analysis'].values())
+    star_score = (stars_found / total_star_possible * 100) if total_star_possible > 0 else 0
+
+    # Assessment logic
+    overall = (avg_tech * 0.5) + (avg_comm * 0.2) + (star_score * 0.3)
+    
+    if overall > 80:
+        assessment = "Expert"
+        feedback = "Outstanding performance! You provided deep technical insights and structured your answers perfectly using the STAR method."
+        feedback_vi = "Tâm điểm tuyệt vời! Bạn đã đưa ra những hiểu biết kỹ thuật sâu sắc và cấu trúc câu trả lời hoàn hảo bằng phương pháp STAR."
+    elif overall > 60:
+        assessment = "Strong"
+        feedback = "Very good session. You demonstrated solid technical knowledge and clear communication."
+        feedback_vi = "Buổi phỏng vấn rất tốt. Bạn đã thể hiện kiến thức kỹ thuật vững chắc và khả năng giao tiếp rõ ràng."
+    elif overall > 40:
+        assessment = "Average"
+        feedback = "Decent start. Try to provide more concrete examples and quantitative results in your future sessions."
+        feedback_vi = "Khởi đầu khá ổn. Hãy cố gắng đưa ra nhiều ví dụ cụ thể và kết quả đo lường được trong các buổi tới."
     else:
-        assessment = "Needs Practice"
-        feedback = "Try to go through more questions to get a thorough practice session."
-        feedback_vi = "Hãy thử trả lời nhiều câu hỏi hơn để có buổi luyện tập kỹ lưỡng hơn."
-    
+        assessment = "Developing"
+        feedback = "Focus on elaborating more on your actions and the specific impact you had in projects."
+        feedback_vi = "Hãy tập trung vào việc mô tả chi tiết hơn các hành động và tác động cụ thể của bạn trong các dự án."
+
     return jsonify({
         'questions_answered': questions_answered,
         'topics_covered': topics,
         'assessment': assessment,
+        'scores': {
+            'technical': round(avg_tech, 1),
+            'communication': round(avg_comm, 1),
+            'structure': round(star_score, 1),
+            'overall': round(overall, 1)
+        },
         'feedback': feedback,
         'feedback_vi': feedback_vi,
+        'detected_skills': list(set([s for h in user_turns if h.get('analysis') for s in h['analysis'].get('mentioned_skills', [])]))
+    })
         'avg_response_words': avg_words,
         'target_job': target_job,
         'match_score': match_score,

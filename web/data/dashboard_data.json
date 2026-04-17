@@ -10,6 +10,14 @@
             "type": "scan",
             "title": "CV Analyzed",
             "subtitle": "Extracted 2 skills from cv mau.pdf",
+            "time": "12:50 PM, Apr 17",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 2 skills from cv mau.pdf",
             "time": "12:45 PM, Apr 17",
             "icon": "bi-file-earmark-pdf",
             "color": "info"
@@ -32,7 +40,7 @@
         }
     ],
     "stats": {
-        "scans": 2,
+        "scans": 3,
         "matches": 0
     }
 }

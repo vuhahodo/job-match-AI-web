@@ -875,7 +875,8 @@ function showToast(title, message, type = 'primary') {
 let interviewState = {
     active: false,
     history: [],
-    questionCount: 0
+    questionCount: 0,
+    detectedSkills: new Set()
 };
 
 async function startInterview() {
@@ -1017,7 +1018,14 @@ async function handleChatSubmit(e) {
 
         if (data.reply) {
             addChatMessage('ai', data.reply);
-            interviewState.history.push({ role: 'ai', content: data.reply });
+            interviewState.history.push({ role: 'ai', content: data.reply, analysis: data.analysis });
+            
+            // Update Live Skills in UI
+            if (data.analysis && data.analysis.mentioned_skills) {
+                data.analysis.mentioned_skills.forEach(s => interviewState.detectedSkills.add(s));
+                updateLiveSkillsUI();
+            }
+
             // If backend says response was too shallow, undo the question counter increment
             if (data.shallow) {
                 interviewState.questionCount = Math.max(0, interviewState.questionCount - 1);
@@ -1092,67 +1100,81 @@ async function endInterview() {
         });
         const summary = await response.json();
 
-        // Build summary card HTML
-        const topicsHtml = summary.topics_covered.map(t =>
-            `<span class="badge bg-primary bg-opacity-10 text-primary me-1 mb-1">${t}</span>`
-        ).join('');
+        // 1. Fill Overall Score
+        const overallEl = document.getElementById('summary-overall-score');
+        if (overallEl) {
+            animateValue(overallEl, 0, summary.scores.overall, 1500);
+        }
 
-        const skillsHtml = (summary.top_skills || []).slice(0, 6).map(s =>
-            `<span class="badge bg-success bg-opacity-10 text-success me-1 mb-1">${s}</span>`
-        ).join('');
+        // 2. Fill Level and Feedback
+        document.getElementById('summary-level').textContent = summary.assessment;
+        document.getElementById('summary-feedback').textContent = summary.feedback;
+        document.getElementById('summary-topics-count').textContent = summary.questions_answered;
 
-        // Assessment color
-        let assessColor = 'text-warning';
-        let assessIcon = 'bi-exclamation-circle';
-        if (summary.assessment === 'Excellent') { assessColor = 'text-success'; assessIcon = 'bi-check-circle-fill'; }
-        else if (summary.assessment === 'Good') { assessColor = 'text-primary'; assessIcon = 'bi-hand-thumbs-up-fill'; }
+        // 3. Render Strengths (Skills)
+        const skillsContainer = document.getElementById('summary-skills');
+        if (skillsContainer) {
+            skillsContainer.innerHTML = summary.detected_skills.map(s => 
+                `<span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 border border-primary border-opacity-25">${s}</span>`
+            ).join('');
+        }
 
-        const summaryHtml = `
-            <div class="interview-summary-card">
-                <h6 class="mb-3"><i class="bi bi-clipboard-check me-2"></i>Interview Summary</h6>
-                <div class="row g-3 mb-3">
-                    <div class="col-4 text-center">
-                        <div class="question-counter">${summary.questions_answered}</div>
-                        <small class="text-muted">Questions</small>
+        // 4. Render Dimension Bars
+        const barsContainer = document.getElementById('summary-scores-bars');
+        if (barsContainer) {
+            const scores = summary.scores;
+            barsContainer.innerHTML = `
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span>Technical Fit</span>
+                        <span class="fw-bold">${scores.technical}%</span>
                     </div>
-                    <div class="col-4 text-center">
-                        <div class="question-counter">${summary.avg_response_words}</div>
-                        <small class="text-muted">Avg Words</small>
-                    </div>
-                    <div class="col-4 text-center">
-                        <div class="question-counter ${assessColor}">
-                            <i class="bi ${assessIcon}"></i>
-                        </div>
-                        <small class="text-muted">${summary.assessment}</small>
+                    <div class="progress" style="height: 6px;">
+                        <div class="progress-bar bg-primary" style="width: ${scores.technical}%"></div>
                     </div>
                 </div>
-                <div class="mb-2">
-                    <small class="fw-bold text-muted d-block mb-1">Topics Covered</small>
-                    ${topicsHtml || '<span class="text-muted small">None</span>'}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span>Communication</span>
+                        <span class="fw-bold">${scores.communication}%</span>
+                    </div>
+                    <div class="progress" style="height: 6px;">
+                        <div class="progress-bar bg-info" style="width: ${scores.communication}%"></div>
+                    </div>
                 </div>
-                <div class="mb-2">
-                    <small class="fw-bold text-muted d-block mb-1">Your Key Skills</small>
-                    ${skillsHtml || '<span class="text-muted small">N/A</span>'}
+                <div class="mb-0">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span>STAR Structure</span>
+                        <span class="fw-bold">${scores.structure}%</span>
+                    </div>
+                    <div class="progress" style="height: 6px;">
+                        <div class="progress-bar bg-success" style="width: ${scores.structure}%"></div>
+                    </div>
                 </div>
-                <div class="mt-3 p-2 bg-white rounded">
-                    <small class="d-block">${summary.feedback}</small>
-                    <small class="d-block text-muted mt-1">${summary.feedback_vi}</small>
-                </div>
-            </div>
-        `;
+            `;
+        }
 
-        const messagesDiv = document.getElementById('chat-messages');
-        const card = document.createElement('div');
-        card.style.maxWidth = '90%';
-        card.style.alignSelf = 'center';
-        card.innerHTML = summaryHtml;
-        messagesDiv.appendChild(card);
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        // 5. Show Modal
+        const modal = new bootstrap.Modal(document.getElementById('interviewSummaryModal'));
+        modal.show();
 
-    } catch (e) {
-        addChatMessage('ai', "Thank you for the session! Good luck with your actual interview.");
+    } catch (err) {
+        console.error("Summary error:", err);
+        showToast('Error', 'Failed to generate interview assessment.', 'danger');
     }
 }
+
+function updateLiveSkillsUI() {
+    const container = document.getElementById('live-skills-container');
+    const card = document.getElementById('live-skills-card');
+    if (!container || interviewState.detectedSkills.size === 0) return;
+    
+    card.style.display = 'block';
+    container.innerHTML = Array.from(interviewState.detectedSkills).map(skill => 
+        `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 animate__animated animate__bounceIn" style="font-size: 0.7rem;">${skill}</span>`
+    ).join('');
+}
+
 
 function downloadTranscript() {
     if (interviewState.history.length === 0) {
