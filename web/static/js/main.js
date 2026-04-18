@@ -150,23 +150,23 @@ async function checkSystemStatus() {
     const statusMsg = document.createElement('div');
     statusMsg.id = 'system-status-msg';
     statusMsg.className = 'text-center small text-info mb-3';
-    
+
     const form = document.getElementById('uploadForm');
     if (form && uploadBtn) {
         form.insertBefore(statusMsg, uploadBtn.parentElement);
-        
+
         const check = async () => {
             try {
-                const res = await fetch('/api/cv-full');
+                const res = await fetch('/api/status');
                 const data = await res.json();
-                if (data.initializing) {
+                if (!data.ready) {
                     uploadBtn.disabled = true;
                     statusMsg.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Knowledge Graph is initializing... Please wait.';
                     setTimeout(check, 3000);
                 } else {
                     uploadBtn.disabled = false;
-                    statusMsg.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> System Ready';
-                    setTimeout(() => { if (statusMsg) statusMsg.remove(); }, 2000);
+                    statusMsg.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i>System Ready — ${data.jobs_loaded.toLocaleString()} jobs loaded`;
+                    setTimeout(() => { if (statusMsg) statusMsg.remove(); }, 3000);
                 }
             } catch (e) {
                 setTimeout(check, 5000);
@@ -192,7 +192,7 @@ async function saveKanbanData() {
     try {
         await fetch('/api/kanban/update', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(KANBAN_DATA)
         });
     } catch (e) {
@@ -206,10 +206,10 @@ async function loadDashboardData() {
     try {
         const response = await fetch('/api/dashboard');
         const data = await response.json();
-        
+
         KANBAN_DATA = data.kanban || DEFAULT_KANBAN;
         const activities = data.activity || [];
-        const stats = data.stats || {scans: 0, matches: 0};
+        const stats = data.stats || { scans: 0, matches: 0 };
 
         renderAllColumns();
         setupDragAndDrop();
@@ -219,7 +219,7 @@ async function loadDashboardData() {
     } catch (e) {
         console.error('Failed to load dashboard data:', e);
         // Fallback to mock/local
-        loadDashboardMockData(); 
+        loadDashboardMockData();
     }
 }
 
@@ -432,15 +432,15 @@ async function handleAddApp(e) {
     try {
         const response = await fetch('/api/kanban/add', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, company, loc, status })
         });
         const result = await response.json();
-        
+
         if (result.success) {
             // Success - reload dashboard data
             await loadDashboardData();
-            
+
             // Close modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('addAppModal'));
             modal.hide();
@@ -1019,7 +1019,7 @@ async function handleChatSubmit(e) {
         if (data.reply) {
             addChatMessage('ai', data.reply);
             interviewState.history.push({ role: 'ai', content: data.reply, analysis: data.analysis });
-            
+
             // Update Live Skills in UI
             if (data.analysis && data.analysis.mentioned_skills) {
                 data.analysis.mentioned_skills.forEach(s => interviewState.detectedSkills.add(s));
@@ -1114,7 +1114,7 @@ async function endInterview() {
         // 3. Render Strengths (Skills)
         const skillsContainer = document.getElementById('summary-skills');
         if (skillsContainer) {
-            skillsContainer.innerHTML = summary.detected_skills.map(s => 
+            skillsContainer.innerHTML = summary.detected_skills.map(s =>
                 `<span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 border border-primary border-opacity-25">${s}</span>`
             ).join('');
         }
@@ -1168,9 +1168,9 @@ function updateLiveSkillsUI() {
     const container = document.getElementById('live-skills-container');
     const card = document.getElementById('live-skills-card');
     if (!container || interviewState.detectedSkills.size === 0) return;
-    
+
     card.style.display = 'block';
-    container.innerHTML = Array.from(interviewState.detectedSkills).map(skill => 
+    container.innerHTML = Array.from(interviewState.detectedSkills).map(skill =>
         `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 animate__animated animate__bounceIn" style="font-size: 0.7rem;">${skill}</span>`
     ).join('');
 }
