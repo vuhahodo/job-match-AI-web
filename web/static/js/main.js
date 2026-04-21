@@ -879,6 +879,28 @@ let interviewState = {
     detectedSkills: new Set()
 };
 
+function attachAnalysisToLatestUserTurn(analysis) {
+    if (!analysis) return;
+    for (let i = interviewState.history.length - 1; i >= 0; i--) {
+        const turn = interviewState.history[i];
+        if (turn && turn.role === 'user') {
+            turn.analysis = analysis;
+            return;
+        }
+    }
+}
+
+function normalizeInterviewHistory(history = []) {
+    return history.map(turn => {
+        if (!turn || typeof turn !== 'object') return turn;
+        const normalized = { ...turn };
+        if (normalized.role === 'user' && !Object.prototype.hasOwnProperty.call(normalized, 'analysis')) {
+            normalized.analysis = null;
+        }
+        return normalized;
+    });
+}
+
 async function startInterview() {
     // 1. Fetch user profile for context
     try {
@@ -956,13 +978,14 @@ async function startInterviewWithTopic(topicKey, topicPrompt) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         message: topicPrompt,
-                        history: interviewState.history,
+                        history: normalizeInterviewHistory(interviewState.history),
                         topic_start: topicKey
                     })
                 });
                 const data = await response.json();
                 removeTypingIndicator(typingId);
                 if (data.reply) {
+                    attachAnalysisToLatestUserTurn(data.analysis);
                     addChatMessage('ai', data.reply);
                     interviewState.history.push({ role: 'ai', content: data.reply });
                     interviewState.questionCount++;
@@ -1010,15 +1033,16 @@ async function handleChatSubmit(e) {
         const response = await fetch('/interview/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message, history: interviewState.history })
+            body: JSON.stringify({ message: message, history: normalizeInterviewHistory(interviewState.history) })
         });
 
         const data = await response.json();
         removeTypingIndicator(typingId);
 
         if (data.reply) {
+            attachAnalysisToLatestUserTurn(data.analysis);
             addChatMessage('ai', data.reply);
-            interviewState.history.push({ role: 'ai', content: data.reply, analysis: data.analysis });
+            interviewState.history.push({ role: 'ai', content: data.reply });
             
             // Update Live Skills in UI
             if (data.analysis && data.analysis.mentioned_skills) {
@@ -1096,7 +1120,7 @@ async function endInterview() {
         const response = await fetch('/interview/summary', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ history: interviewState.history })
+            body: JSON.stringify({ history: normalizeInterviewHistory(interviewState.history) })
         });
         const summary = await response.json();
 
