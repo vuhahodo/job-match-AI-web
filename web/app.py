@@ -4,6 +4,9 @@
 from flask import Flask, render_template, request, jsonify, send_file, session
 from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
+from flask import session
+from werkzeug.security import generate_password_hash, check_password_hash
+import uuid
 import os
 import re
 import json
@@ -244,6 +247,7 @@ def index():
 def upload_page():
     user_state = get_user_state()
     user_state = get_user_state()
+    user_state = get_user_state()
     return render_template('pages/upload.html', cv_filename=user_state.get('cv_filename'))
 
 @app.route('/dashboard')
@@ -324,6 +328,7 @@ def add_kanban_item():
 
 @app.route('/upload', methods=['POST'])
 def upload_files():
+    user_state = get_user_state()
     user_state = get_user_state()
     user_state = get_user_state()
     """Handle file uploads"""
@@ -421,6 +426,7 @@ def upload_files():
 def results():
     user_state = get_user_state()
     user_state = get_user_state()
+    user_state = get_user_state()
     """Display matching results"""
     if user_state.get('scores') is None:
         return jsonify([])
@@ -443,6 +449,7 @@ def results():
 
 @app.route('/api/cv-full')
 def cv_full():
+    user_state = get_user_state()
     user_state = get_user_state()
     user_state = get_user_state()
     """Return full extracted CV text and structured info"""
@@ -477,6 +484,7 @@ def cv_full():
 
 @app.route('/job/<job_id>')
 def job_detail(job_id):
+    user_state = get_user_state()
     user_state = get_user_state()
     user_state = get_user_state()
     """Get detailed job information"""
@@ -532,6 +540,7 @@ def job_detail(job_id):
 def user_skills():
     user_state = get_user_state()
     user_state = get_user_state()
+    user_state = get_user_state()
     """Get detected user skills"""
     if user_state.get('user_prob') is None:
         return jsonify([])
@@ -550,6 +559,7 @@ def user_skills():
 
 @app.route('/statistics')
 def statistics():
+    user_state = get_user_state()
     user_state = get_user_state()
     user_state = get_user_state()
     """Get dataset statistics"""
@@ -577,6 +587,7 @@ def statistics():
 
 # @app.route('/graph')
 # def graph_data():
+    user_state = get_user_state()
     user_state = get_user_state()
     user_state = get_user_state()
 #     """Get graph visualization data"""
@@ -622,6 +633,7 @@ def statistics():
 #         return jsonify({'error': str(e)}), 500
 @app.route('/graph')
 def graph_data():
+    user_state = get_user_state()
     user_state = get_user_state()
     user_state = get_user_state()
     """Get focused knowledge graph data for visualization.
@@ -956,6 +968,7 @@ QUESTION_ORDER = [
 def interview_chat():
     user_state = get_user_state()
     user_state = get_user_state()
+    user_state = get_user_state()
     """Smart Bilingual AI Interview — analyzes user responses with NLP"""
     if user_state.get('cv_text') is None:
         return jsonify({'reply': "I'm ready to interview you! Please upload your CV first so I can tailor the questions to your experience.\n\n(Tôi đã sẵn sàng phỏng vấn bạn! Vui lòng tải CV lên trước để tôi có thể điều chỉnh câu hỏi phù hợp với kinh nghiệm của bạn.)"})
@@ -1086,6 +1099,7 @@ def interview_chat():
 def interview_summary():
     user_state = get_user_state()
     user_state = get_user_state()
+    user_state = get_user_state()
     """Generate interview assessment summary"""
     data = request.json
     history = data.get('history', [])
@@ -1175,6 +1189,7 @@ def interview_summary():
 def user_profile():
     user_state = get_user_state()
     user_state = get_user_state()
+    user_state = get_user_state()
     """Get summarized user profile for UI widgets"""
     if user_state.get('cv_text') is None:
         return jsonify({'active': False})
@@ -1197,6 +1212,7 @@ def user_profile():
 
 @app.route('/api/cv-data')
 def cv_data():
+    user_state = get_user_state()
     user_state = get_user_state()
     user_state = get_user_state()
     """Extract structured CV data for the CV Builder auto-fill"""
