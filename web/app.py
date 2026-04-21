@@ -925,15 +925,57 @@ def interview_chat():
         'turn': turn_count + 1,
         'total_turns': 10,
         'analysis': analysis,
+        'history_contract': {
+            'user_turn_requires_analysis': True,
+            'analysis_nullable': True
+        },
         'shallow': is_shallow  # Tell frontend this was a shallow response
     })
+
+
+def _normalize_interview_history(history):
+    """Normalize chat history into a stable schema."""
+    normalized = []
+    for turn in history or []:
+        if not isinstance(turn, dict):
+            continue
+        role = turn.get('role')
+        content = turn.get('content', '')
+        item = {
+            'role': role,
+            'content': content
+        }
+        if role == 'user':
+            item['analysis'] = turn.get('analysis')
+        elif 'analysis' in turn:
+            item['analysis'] = turn.get('analysis')
+        normalized.append(item)
+    return normalized
+
+
+def _extract_user_turn_analysis(history, idx, user_turn):
+    """
+    Prefer analysis on the user turn (new schema), then fallback to nearest following AI turn (legacy schema).
+    """
+    analysis = user_turn.get('analysis')
+    if isinstance(analysis, dict):
+        return analysis
+
+    for next_turn in history[idx + 1:]:
+        if next_turn.get('role') != 'ai':
+            continue
+        ai_analysis = next_turn.get('analysis')
+        if isinstance(ai_analysis, dict):
+            return ai_analysis
+        break
+    return None
 
 
 @app.route('/interview/summary', methods=['POST'])
 def interview_summary():
     """Generate interview assessment summary"""
     data = request.json
-    history = data.get('history', [])
+    history = _normalize_interview_history(data.get('history', []))
     
     user_role = state.get('user_role_can', 'Professional')
     user_skills = list(state.get('user_prob', {}).keys())[:8]
@@ -945,7 +987,10 @@ def interview_summary():
         match_score = round(state['scores'][0][1] * 100, 1)
     
     user_turns = [h for h in history if h.get('role') == 'user']
-    ai_turns = [h for h in history if h.get('role') == 'ai']
+    user_turn_analyses = []
+    for idx, h in enumerate(history):
+        if h.get('role') == 'user':
+            user_turn_analyses.append(_extract_user_turn_analysis(history, idx, h))
     questions_answered = len(user_turns)
     
     # Determine covered topics based on turn count
@@ -959,7 +1004,11 @@ def interview_summary():
         topics.append(topic_labels[i])
     
     # 1. Technical Score (Depth)
-    tech_depths = [h.get('analysis', {}).get('depth_score', 0) for h in user_turns if h.get('analysis')]
+    tech_depths = [
+        a.get('depth_score', 0)
+        for a in user_turn_analyses
+        if isinstance(a, dict) and a.get('depth_score') is not None
+    ]
     avg_tech = sum(tech_depths)/len(tech_depths) if tech_depths else 0
     
     # 2. Communication Score (Word count & Variety)
@@ -971,9 +1020,9 @@ def interview_summary():
     # 3. Confidence/Structure (STAR check)
     stars_found = 0
     total_star_possible = questions_answered * 4
-    for h in user_turns:
-        if h.get('analysis') and h.get('analysis').get('star_analysis'):
-            stars_found += sum(h['analysis']['star_analysis'].values())
+    for analysis in user_turn_analyses:
+        if isinstance(analysis, dict) and isinstance(analysis.get('star_analysis'), dict):
+            stars_found += sum(analysis['star_analysis'].values())
     star_score = (stars_found / total_star_possible * 100) if total_star_possible > 0 else 0
 
     # Assessment logic
@@ -1008,7 +1057,17 @@ def interview_summary():
         },
         'feedback': feedback,
         'feedback_vi': feedback_vi,
-        'detected_skills': list(set([s for h in user_turns if h.get('analysis') for s in h['analysis'].get('mentioned_skills', [])])),
+        'history_contract': {
+            'user_turn_requires_analysis': True,
+            'analysis_nullable': True,
+            'summary_reads_legacy_ai_analysis': True
+        },
+        'detected_skills': sorted(list(set([
+            s for analysis in user_turn_analyses
+            if isinstance(analysis, dict)
+            for s in (analysis.get('mentioned_skills') or [])
+            if s
+        ]))),
         'avg_response_words': avg_words,
         'target_job': target_job,
         'match_score': match_score,
@@ -1487,4 +1546,3 @@ def init_application():
 if __name__ == "__main__":
     init_application()
     app.run(host="127.0.0.1", port=5000, debug=True)
-
