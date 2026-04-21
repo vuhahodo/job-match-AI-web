@@ -248,18 +248,6 @@ def add_kanban_item():
         return jsonify({'success': True, 'item': new_card})
     return jsonify({'error': 'Invalid status'}), 400
 
-@app.route('/user-skills')
-def get_user_skills():
-    user_state = get_user_state()
-    if user_state.get('user_prob') is None:
-        return jsonify([])
-    # Return sorted skills
-    sorted_skills = sorted(
-        [{'name': k, 'probability': v} for k, v in user_state['user_prob'].items()],
-        key=lambda x: x['probability'],
-        reverse=True
-    )
-    return jsonify(sorted_skills)
 
 @app.route('/upload', methods=['POST'])
 def upload_files():
@@ -455,7 +443,7 @@ def job_detail(job_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/user-skills')
-def user_skills():
+def get_user_skills_api():
     """Get detected user skills"""
     user_state = get_user_state()
     if not user_state.get('user_prob'):
@@ -993,15 +981,57 @@ def interview_chat():
         'turn': turn_count + 1,
         'total_turns': 10,
         'analysis': analysis,
+        'history_contract': {
+            'user_turn_requires_analysis': True,
+            'analysis_nullable': True
+        },
         'shallow': is_shallow  # Tell frontend this was a shallow response
     })
+
+
+def _normalize_interview_history(history):
+    """Normalize chat history into a stable schema."""
+    normalized = []
+    for turn in history or []:
+        if not isinstance(turn, dict):
+            continue
+        role = turn.get('role')
+        content = turn.get('content', '')
+        item = {
+            'role': role,
+            'content': content
+        }
+        if role == 'user':
+            item['analysis'] = turn.get('analysis')
+        elif 'analysis' in turn:
+            item['analysis'] = turn.get('analysis')
+        normalized.append(item)
+    return normalized
+
+
+def _extract_user_turn_analysis(history, idx, user_turn):
+    """
+    Prefer analysis on the user turn (new schema), then fallback to nearest following AI turn (legacy schema).
+    """
+    analysis = user_turn.get('analysis')
+    if isinstance(analysis, dict):
+        return analysis
+
+    for next_turn in history[idx + 1:]:
+        if next_turn.get('role') != 'ai':
+            continue
+        ai_analysis = next_turn.get('analysis')
+        if isinstance(ai_analysis, dict):
+            return ai_analysis
+        break
+    return None
 
 
 @app.route('/interview/summary', methods=['POST'])
 def interview_summary():
     """Generate interview assessment summary"""
     data = request.json
-    history = data.get('history', [])
+    history = _normalize_interview_history(data.get('history', []))
     
     user_state = get_user_state()
     user_role = user_state.get('user_role_can', 'Professional')
@@ -1014,7 +1044,10 @@ def interview_summary():
         match_score = round(user_state['scores'][0][1] * 100, 1)
     
     user_turns = [h for h in history if h.get('role') == 'user']
-    ai_turns = [h for h in history if h.get('role') == 'ai']
+    user_turn_analyses = []
+    for idx, h in enumerate(history):
+        if h.get('role') == 'user':
+            user_turn_analyses.append(_extract_user_turn_analysis(history, idx, h))
     questions_answered = len(user_turns)
     
     # Determine covered topics based on turn count
@@ -1028,7 +1061,11 @@ def interview_summary():
         topics.append(topic_labels[i])
     
     # 1. Technical Score (Depth)
-    tech_depths = [h.get('analysis', {}).get('depth_score', 0) for h in user_turns if h.get('analysis')]
+    tech_depths = [
+        a.get('depth_score', 0)
+        for a in user_turn_analyses
+        if isinstance(a, dict) and a.get('depth_score') is not None
+    ]
     avg_tech = sum(tech_depths)/len(tech_depths) if tech_depths else 0
     
     # 2. Communication Score (Word count & Variety)
@@ -1040,9 +1077,9 @@ def interview_summary():
     # 3. Confidence/Structure (STAR check)
     stars_found = 0
     total_star_possible = questions_answered * 4
-    for h in user_turns:
-        if h.get('analysis') and h.get('analysis').get('star_analysis'):
-            stars_found += sum(h['analysis']['star_analysis'].values())
+    for analysis in user_turn_analyses:
+        if isinstance(analysis, dict) and isinstance(analysis.get('star_analysis'), dict):
+            stars_found += sum(analysis['star_analysis'].values())
     star_score = (stars_found / total_star_possible * 100) if total_star_possible > 0 else 0
 
     # Assessment logic
@@ -1077,7 +1114,17 @@ def interview_summary():
         },
         'feedback': feedback,
         'feedback_vi': feedback_vi,
-        'detected_skills': list(set([s for h in user_turns if h.get('analysis') for s in h['analysis'].get('mentioned_skills', [])])),
+        'history_contract': {
+            'user_turn_requires_analysis': True,
+            'analysis_nullable': True,
+            'summary_reads_legacy_ai_analysis': True
+        },
+        'detected_skills': sorted(list(set([
+            s for analysis in user_turn_analyses
+            if isinstance(analysis, dict)
+            for s in (analysis.get('mentioned_skills') or [])
+            if s
+        ]))),
         'avg_response_words': avg_words,
         'target_job': target_job,
         'match_score': match_score,
@@ -1450,12 +1497,22 @@ def api_search():
         filtered_df = filtered_df[filtered_df['salary'].apply(check_salary)]
 
     # 6. Sorting
+    sort_applied = 'relevance_original_order'
     if sort_by == 'newest':
-        # Sort by id descending (higher id = newer job)
-        if 'id' in filtered_df.columns:
-            filtered_df = filtered_df.sort_values('id', ascending=False)
+        # Priority: sort by normalized `job_id` from Excel (higher = newer)
+        if 'job_id' in filtered_df.columns:
+            filtered_df = filtered_df.copy()
+            filtered_df['_sort_job_id'] = pd.to_numeric(filtered_df['job_id'], errors='coerce')
+            if filtered_df['_sort_job_id'].notna().any():
+                filtered_df = filtered_df.sort_values('_sort_job_id', ascending=False)
+                sort_applied = 'job_id_numeric_desc'
+            else:
+                filtered_df = filtered_df.iloc[::-1]  # Fallback only when job_id is not parseable
+                sort_applied = 'fallback_reverse_unparseable_job_id'
+            filtered_df = filtered_df.drop(columns=['_sort_job_id'])
         else:
-            filtered_df = filtered_df.iloc[::-1]  # Reverse order as fallback
+            filtered_df = filtered_df.iloc[::-1]
+            sort_applied = 'fallback_reverse_missing_job_id'
     elif sort_by == 'salary':
         # Sort by salary (high to low)
         def extract_max_salary(s_str):
@@ -1472,6 +1529,7 @@ def api_search():
         filtered_df['_sort_salary'] = filtered_df['salary'].apply(extract_max_salary)
         filtered_df = filtered_df.sort_values('_sort_salary', ascending=False)
         filtered_df = filtered_df.drop(columns=['_sort_salary'])
+        sort_applied = 'salary_desc'
     # else: relevance - keep original order
 
     total_count = len(filtered_df)
@@ -1498,7 +1556,8 @@ def api_search():
     return jsonify({
         'jobs': output,
         'has_more': (offset + limit) < total_count,
-        'total': total_count
+        'total': total_count,
+        'sort_applied': sort_applied
     })
 
 
