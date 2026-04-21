@@ -1379,12 +1379,22 @@ def api_search():
         filtered_df = filtered_df[filtered_df['salary'].apply(check_salary)]
 
     # 6. Sorting
+    sort_applied = 'relevance_original_order'
     if sort_by == 'newest':
-        # Sort by id descending (higher id = newer job)
-        if 'id' in filtered_df.columns:
-            filtered_df = filtered_df.sort_values('id', ascending=False)
+        # Priority: sort by normalized `job_id` from Excel (higher = newer)
+        if 'job_id' in filtered_df.columns:
+            filtered_df = filtered_df.copy()
+            filtered_df['_sort_job_id'] = pd.to_numeric(filtered_df['job_id'], errors='coerce')
+            if filtered_df['_sort_job_id'].notna().any():
+                filtered_df = filtered_df.sort_values('_sort_job_id', ascending=False)
+                sort_applied = 'job_id_numeric_desc'
+            else:
+                filtered_df = filtered_df.iloc[::-1]  # Fallback only when job_id is not parseable
+                sort_applied = 'fallback_reverse_unparseable_job_id'
+            filtered_df = filtered_df.drop(columns=['_sort_job_id'])
         else:
-            filtered_df = filtered_df.iloc[::-1]  # Reverse order as fallback
+            filtered_df = filtered_df.iloc[::-1]
+            sort_applied = 'fallback_reverse_missing_job_id'
     elif sort_by == 'salary':
         # Sort by salary (high to low)
         def extract_max_salary(s_str):
@@ -1401,6 +1411,7 @@ def api_search():
         filtered_df['_sort_salary'] = filtered_df['salary'].apply(extract_max_salary)
         filtered_df = filtered_df.sort_values('_sort_salary', ascending=False)
         filtered_df = filtered_df.drop(columns=['_sort_salary'])
+        sort_applied = 'salary_desc'
     # else: relevance - keep original order
 
     total_count = len(filtered_df)
@@ -1427,7 +1438,8 @@ def api_search():
     return jsonify({
         'jobs': output,
         'has_more': (offset + limit) < total_count,
-        'total': total_count
+        'total': total_count,
+        'sort_applied': sort_applied
     })
 
 
@@ -1487,4 +1499,3 @@ def init_application():
 if __name__ == "__main__":
     init_application()
     app.run(host="127.0.0.1", port=5000, debug=True)
-
