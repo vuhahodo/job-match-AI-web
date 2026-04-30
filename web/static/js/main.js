@@ -555,8 +555,35 @@ function setupUploadForm() {
     const form = document.getElementById('uploadForm');
     const fileInput = document.getElementById('pdfFile');
     const uploadArea = document.querySelector('.upload-area');
+    const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+    const inlineError = document.getElementById('uploadInlineError');
+    const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
 
     if (!form || !fileInput) return;
+
+    const setInlineError = (message) => {
+        if (!inlineError) return;
+        if (message) {
+            inlineError.textContent = message;
+            inlineError.classList.remove('d-none');
+        } else {
+            inlineError.textContent = '';
+            inlineError.classList.add('d-none');
+        }
+    };
+
+    const validatePDF = (file) => {
+        if (!file) return 'Please select a PDF file.';
+        const name = (file.name || '').toLowerCase();
+        const type = (file.type || '').toLowerCase();
+        if (!name.endsWith('.pdf') && type !== 'application/pdf') {
+            return 'Only PDF files are allowed.';
+        }
+        if (file.size > MAX_UPLOAD_SIZE) {
+            return 'File size must be 100MB or less.';
+        }
+        return '';
+    };
 
     // Drag and drop events
     if (uploadArea) {
@@ -583,12 +610,25 @@ function setupUploadForm() {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        setInlineError('');
+
+        const selectedFile = fileInput.files[0];
+        const validationError = validatePDF(selectedFile);
+        if (validationError) {
+            setInlineError(validationError);
+            return;
+        }
 
         const loader = document.getElementById('globalLoader');
         if (loader) loader.classList.add('active');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.dataset.originalHtml = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
+        }
 
         const formData = new FormData();
-        formData.append('pdf_file', fileInput.files[0]);
+        formData.append('pdf_file', selectedFile);
 
         try {
             const response = await fetch('/upload', {
@@ -608,20 +648,43 @@ function setupUploadForm() {
                 // Reload graph if needed
                 // initializeGraph(true);
             } else {
-                showToast('Error', data.error || 'Upload failed', 'danger');
+                setInlineError(data.error || 'Upload failed');
             }
         } catch (error) {
-            showToast('Error', error.message, 'danger');
+            setInlineError(error.message || 'Upload failed');
         } finally {
             if (loader) loader.classList.remove('active');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = submitBtn.dataset.originalHtml || submitBtn.innerHTML;
+            }
         }
     });
 }
 
 function handleFiles(files) {
     const fileLabel = document.getElementById('fileNameDisplay');
+    const inlineError = document.getElementById('uploadInlineError');
+    const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
     if (files.length > 0 && fileLabel) {
-        fileLabel.textContent = files[0].name;
+        const file = files[0];
+        const name = (file.name || '').toLowerCase();
+        const type = (file.type || '').toLowerCase();
+        if ((!name.endsWith('.pdf') && type !== 'application/pdf') || file.size > MAX_UPLOAD_SIZE) {
+            fileLabel.style.display = 'none';
+            if (inlineError) {
+                inlineError.textContent = !name.endsWith('.pdf') && type !== 'application/pdf'
+                    ? 'Only PDF files are allowed.'
+                    : 'File size must be 100MB or less.';
+                inlineError.classList.remove('d-none');
+            }
+            return;
+        }
+        if (inlineError) {
+            inlineError.textContent = '';
+            inlineError.classList.add('d-none');
+        }
+        fileLabel.textContent = file.name;
         fileLabel.style.display = 'inline-block';
     }
 }

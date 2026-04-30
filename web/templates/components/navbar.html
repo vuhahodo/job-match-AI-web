@@ -60,18 +60,21 @@
                         href="{{ url_for('search_page') }}"><i class="bi bi-search"></i> Search</a>
                 </li>
             </ul>
-            <div class="d-flex align-items-center" id="authButtons">
-                <button class="btn btn-link text-decoration-none me-3" id="themeToggle" onclick="toggleTheme();"
+            <div class="d-flex align-items-center">
+                <button class="btn btn-link text-decoration-none me-2" id="themeToggle" onclick="toggleTheme();"
                     title="Toggle Dark Mode">
                     <div class="theme-icon-wrapper rounded-circle d-flex align-items-center justify-content-center"
                         style="width: 36px; height: 36px; background: rgba(0,0,0,0.03);">
                         <i class="bi bi-moon-stars-fill fs-6"></i>
                     </div>
                 </button>
-                <button class="btn btn-primary btn-sm px-3 me-2" data-bs-toggle="modal" data-bs-target="#loginModal">Log
-                    In</button>
-                <button class="btn btn-primary btn-sm px-3" data-bs-toggle="modal" data-bs-target="#registerModal">Sign
-                    Up</button>
+
+                <div class="d-flex align-items-center" id="authButtons">
+                    <button class="btn btn-primary btn-sm px-3 me-2" data-bs-toggle="modal" data-bs-target="#loginModal">Log
+                        In</button>
+                    <button class="btn btn-primary btn-sm px-3" data-bs-toggle="modal" data-bs-target="#registerModal">Sign
+                        Up</button>
+                </div>
             </div>
             <div class="dropdown ms-3 d-none" id="userProfile">
                 <button class="btn btn-light dropdown-toggle d-flex align-items-center gap-2 border-0" type="button"
