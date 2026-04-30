@@ -1548,7 +1548,7 @@ function changeSortOrder(sortValue, displayText, element) {
 async function handleJobSearch() {
     currentSearchOffset = 0; // Reset offset on new search
     const queryInput = document.getElementById('job-search-input');
-    const citySelect = document.getElementById('search-city-filter');
+    const locationSelect = document.getElementById('search-city-filter');
     const resultsDiv = document.getElementById('searchResults');
     const countSpan = document.getElementById('search-results-count');
     const loadMoreBtn = document.getElementById('btn-load-more');
@@ -1556,7 +1556,7 @@ async function handleJobSearch() {
     if (!resultsDiv || !queryInput) return;
 
     const query = queryInput.value;
-    const city = citySelect ? citySelect.value : 'All Locations';
+    const location = locationSelect ? locationSelect.value : 'All Locations';
 
     // Collect Experience Filters
     const expArr = [];
@@ -1581,7 +1581,7 @@ async function handleJobSearch() {
     resultsDiv.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Searching the database...</p></div>';
 
     try {
-        const url = `/api/search?q=${encodeURIComponent(query)}&city=${encodeURIComponent(city)}&offset=0&limit=${SEARCH_LIMIT}&exp=${expParam}&type=${typeParam}&min_salary=${minSalary}&sort=${currentSortOrder}`;
+        const url = `/api/search?q=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}&offset=0&limit=${SEARCH_LIMIT}&exp=${expParam}&type=${typeParam}&min_salary=${minSalary}&sort=${currentSortOrder}`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -1613,14 +1613,14 @@ async function handleJobSearch() {
 
 async function loadMoreJobs() {
     const queryInput = document.getElementById('job-search-input');
-    const citySelect = document.getElementById('search-city-filter');
+    const locationSelect = document.getElementById('search-city-filter');
     const loadMoreBtn = document.getElementById('btn-load-more');
 
     if (!loadMoreBtn) return;
 
     currentSearchOffset += SEARCH_LIMIT;
     const query = queryInput ? queryInput.value : '';
-    const city = citySelect ? citySelect.value : 'All Locations';
+    const location = locationSelect ? locationSelect.value : 'All Locations';
 
     const originalText = loadMoreBtn.innerHTML;
     loadMoreBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading...';
@@ -1639,7 +1639,7 @@ async function loadMoreJobs() {
 
         const minSalary = document.getElementById('search-salary-range')?.value || 0;
 
-        const url = `/api/search?q=${encodeURIComponent(query)}&city=${encodeURIComponent(city)}&offset=${currentSearchOffset}&limit=${SEARCH_LIMIT}&exp=${expParam}&type=${typeParam}&min_salary=${minSalary}&sort=${currentSortOrder}`;
+        const url = `/api/search?q=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}&offset=${currentSearchOffset}&limit=${SEARCH_LIMIT}&exp=${expParam}&type=${typeParam}&min_salary=${minSalary}&sort=${currentSortOrder}`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -1687,13 +1687,13 @@ function renderJobsBatch(jobs) {
 
 function resetSearchFilters() {
     const queryInput = document.getElementById('job-search-input');
-    const citySelect = document.getElementById('search-city-filter');
+    const locationSelect = document.getElementById('search-city-filter');
     const salaryRange = document.getElementById('search-salary-range');
     const expChecks = ['exp-intern', 'exp-junior', 'exp-senior', 'exp-lead'];
     const typeChecks = ['type-full', 'type-part', 'type-remote', 'type-contract'];
 
     if (queryInput) queryInput.value = '';
-    if (citySelect) citySelect.selectedIndex = 0;
+    if (locationSelect) locationSelect.selectedIndex = 0;
     if (salaryRange) {
         salaryRange.value = 0;
         document.getElementById('search-salary-val').textContent = '$0k+';
