@@ -62,3 +62,10 @@ REFACTORING_SUMMARY.md
 graph.png
 README.md
 
+# Database and Data
+web/data/*.db
+web/data/*.json
+app.db
+dashboard_data.json
+users.json
+
