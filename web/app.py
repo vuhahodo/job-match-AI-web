@@ -59,6 +59,15 @@ def get_db():
 
 from web.migrations import run_migrations
 
+def init_db():
+    # Only run migrations if the database file doesn't exist
+    if not os.path.exists(DB_PATH):
+        print(f"[INFO] Database not found at {DB_PATH}. Initializing for the first time...")
+        run_migrations(DB_PATH)
+    else:
+        # DB exists, we assume it's already migrated
+        pass
+
 # Initialize DB on startup
 init_db() 
 
