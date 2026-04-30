@@ -178,6 +178,100 @@ async function handleRegister(e) {
     }
 }
 
+async function handleForgotPassword(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const form = e.target;
+    const resultBox = document.getElementById('forgotPasswordResult');
+    const btn = form.querySelector('button[type="submit"]');
+    const originalText = btn.innerHTML;
+    const formData = new FormData(form);
+    const email = String(formData.get('email') || '').trim();
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    if (resultBox) resultBox.textContent = '';
+    try {
+        const response = await fetch('/api/forgot-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to generate reset token');
+        }
+        if (resultBox) {
+            resultBox.innerHTML = `<div class="alert alert-info mb-0 py-2">Demo reset token: <code>${escapeHtml(data.reset_token)}</code><div class="mt-2"><button type="button" class="btn btn-sm btn-outline-primary" onclick="openResetPasswordModal('${escapeHtml(data.reset_token)}')">Use this token</button></div></div>`;
+        }
+    } catch (err) {
+        if (resultBox) {
+            resultBox.innerHTML = `<div class="alert alert-danger mb-0 py-2">${escapeHtml(err.message || 'Request failed')}</div>`;
+        }
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+    return false;
+}
+
+function openResetPasswordModal(token = '') {
+    const tokenInput = document.getElementById('resetPasswordToken');
+    const resultBox = document.getElementById('resetPasswordResult');
+    if (tokenInput) tokenInput.value = token;
+    if (resultBox) resultBox.innerHTML = '';
+
+    const forgotModalEl = document.getElementById('forgotPasswordModal');
+    const forgotModal = forgotModalEl ? bootstrap.Modal.getInstance(forgotModalEl) : null;
+    if (forgotModal) forgotModal.hide();
+
+    const resetModalEl = document.getElementById('resetPasswordModal');
+    if (resetModalEl) {
+        const resetModal = bootstrap.Modal.getOrCreateInstance(resetModalEl);
+        resetModal.show();
+    }
+}
+
+async function handleResetPassword(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const form = e.target;
+    const btn = form.querySelector('button[type="submit"]');
+    const originalText = btn.innerHTML;
+    const resultBox = document.getElementById('resetPasswordResult');
+    const formData = new FormData(form);
+    const token = String(formData.get('token') || '').trim();
+    const newPassword = String(formData.get('new_password') || '');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    if (resultBox) resultBox.innerHTML = '';
+
+    try {
+        const response = await fetch('/api/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, new_password: newPassword })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to reset password');
+        }
+        if (resultBox) {
+            resultBox.innerHTML = '<div class="alert alert-success mb-0 py-2">Password reset successful. You can now log in with your new password.</div>';
+        }
+        form.reset();
+    } catch (err) {
+        if (resultBox) {
+            resultBox.innerHTML = `<div class="alert alert-danger mb-0 py-2">${escapeHtml(err.message || 'Request failed')}</div>`;
+        }
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+    return false;
+}
+
 function closeAuthModals() {
     const loginModalEl = document.getElementById('loginModal');
     const registerModalEl = document.getElementById('registerModal');
