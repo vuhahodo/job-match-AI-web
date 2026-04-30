@@ -178,6 +178,96 @@ async function handleRegister(e) {
     }
 }
 
+async function handleForgotPassword(e) {
+    e.preventDefault();
+    const form = e.target;
+    const resultBox = document.getElementById('forgotPasswordResult');
+    const btn = form.querySelector('button[type="submit"]');
+    const originalText = btn.innerHTML;
+    const formData = new FormData(form);
+    const email = String(formData.get('email') || '').trim();
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    if (resultBox) resultBox.textContent = '';
+    try {
+        const response = await fetch('/api/forgot-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to generate reset token');
+        }
+        if (resultBox) {
+            resultBox.innerHTML = `<div class="alert alert-info mb-0 py-2">Demo reset token: <code>${escapeHtml(data.reset_token)}</code><div class="mt-2"><button type="button" class="btn btn-sm btn-outline-primary" onclick="openResetPasswordModal('${escapeHtml(data.reset_token)}')">Use this token</button></div></div>`;
+        }
+    } catch (err) {
+        if (resultBox) {
+            resultBox.innerHTML = `<div class="alert alert-danger mb-0 py-2">${escapeHtml(err.message || 'Request failed')}</div>`;
+        }
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+function openResetPasswordModal(token = '') {
+    const tokenInput = document.getElementById('resetPasswordToken');
+    const resultBox = document.getElementById('resetPasswordResult');
+    if (tokenInput) tokenInput.value = token;
+    if (resultBox) resultBox.innerHTML = '';
+
+    const forgotModalEl = document.getElementById('forgotPasswordModal');
+    const forgotModal = forgotModalEl ? bootstrap.Modal.getInstance(forgotModalEl) : null;
+    if (forgotModal) forgotModal.hide();
+
+    const resetModalEl = document.getElementById('resetPasswordModal');
+    if (resetModalEl) {
+        const resetModal = bootstrap.Modal.getOrCreateInstance(resetModalEl);
+        resetModal.show();
+    }
+}
+
+async function handleResetPassword(e) {
+    e.preventDefault();
+    const form = e.target;
+    const btn = form.querySelector('button[type="submit"]');
+    const originalText = btn.innerHTML;
+    const resultBox = document.getElementById('resetPasswordResult');
+    const formData = new FormData(form);
+    const token = String(formData.get('token') || '').trim();
+    const newPassword = String(formData.get('new_password') || '');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    if (resultBox) resultBox.innerHTML = '';
+
+    try {
+        const response = await fetch('/api/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, new_password: newPassword })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to reset password');
+        }
+        if (resultBox) {
+            resultBox.innerHTML = '<div class="alert alert-success mb-0 py-2">Password reset successful. You can now log in with your new password.</div>';
+        }
+        form.reset();
+    } catch (err) {
+        if (resultBox) {
+            resultBox.innerHTML = `<div class="alert alert-danger mb-0 py-2">${escapeHtml(err.message || 'Request failed')}</div>`;
+        }
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
 function closeAuthModals() {
     const loginModalEl = document.getElementById('loginModal');
     const registerModalEl = document.getElementById('registerModal');
@@ -555,8 +645,35 @@ function setupUploadForm() {
     const form = document.getElementById('uploadForm');
     const fileInput = document.getElementById('pdfFile');
     const uploadArea = document.querySelector('.upload-area');
+    const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+    const inlineError = document.getElementById('uploadInlineError');
+    const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
 
     if (!form || !fileInput) return;
+
+    const setInlineError = (message) => {
+        if (!inlineError) return;
+        if (message) {
+            inlineError.textContent = message;
+            inlineError.classList.remove('d-none');
+        } else {
+            inlineError.textContent = '';
+            inlineError.classList.add('d-none');
+        }
+    };
+
+    const validatePDF = (file) => {
+        if (!file) return 'Please select a PDF file.';
+        const name = (file.name || '').toLowerCase();
+        const type = (file.type || '').toLowerCase();
+        if (!name.endsWith('.pdf') && type !== 'application/pdf') {
+            return 'Only PDF files are allowed.';
+        }
+        if (file.size > MAX_UPLOAD_SIZE) {
+            return 'File size must be 100MB or less.';
+        }
+        return '';
+    };
 
     // Drag and drop events
     if (uploadArea) {
@@ -583,12 +700,25 @@ function setupUploadForm() {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        setInlineError('');
+
+        const selectedFile = fileInput.files[0];
+        const validationError = validatePDF(selectedFile);
+        if (validationError) {
+            setInlineError(validationError);
+            return;
+        }
 
         const loader = document.getElementById('globalLoader');
         if (loader) loader.classList.add('active');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.dataset.originalHtml = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
+        }
 
         const formData = new FormData();
-        formData.append('pdf_file', fileInput.files[0]);
+        formData.append('pdf_file', selectedFile);
 
         try {
             const response = await fetch('/upload', {
@@ -608,20 +738,43 @@ function setupUploadForm() {
                 // Reload graph if needed
                 // initializeGraph(true);
             } else {
-                showToast('Error', data.error || 'Upload failed', 'danger');
+                setInlineError(data.error || 'Upload failed');
             }
         } catch (error) {
-            showToast('Error', error.message, 'danger');
+            setInlineError(error.message || 'Upload failed');
         } finally {
             if (loader) loader.classList.remove('active');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = submitBtn.dataset.originalHtml || submitBtn.innerHTML;
+            }
         }
     });
 }
 
 function handleFiles(files) {
     const fileLabel = document.getElementById('fileNameDisplay');
+    const inlineError = document.getElementById('uploadInlineError');
+    const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
     if (files.length > 0 && fileLabel) {
-        fileLabel.textContent = files[0].name;
+        const file = files[0];
+        const name = (file.name || '').toLowerCase();
+        const type = (file.type || '').toLowerCase();
+        if ((!name.endsWith('.pdf') && type !== 'application/pdf') || file.size > MAX_UPLOAD_SIZE) {
+            fileLabel.style.display = 'none';
+            if (inlineError) {
+                inlineError.textContent = !name.endsWith('.pdf') && type !== 'application/pdf'
+                    ? 'Only PDF files are allowed.'
+                    : 'File size must be 100MB or less.';
+                inlineError.classList.remove('d-none');
+            }
+            return;
+        }
+        if (inlineError) {
+            inlineError.textContent = '';
+            inlineError.classList.add('d-none');
+        }
+        fileLabel.textContent = file.name;
         fileLabel.style.display = 'inline-block';
     }
 }
