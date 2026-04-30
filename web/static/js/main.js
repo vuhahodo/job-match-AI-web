@@ -804,7 +804,7 @@ async function loadResults() {
                             </div>
                         </div>
                         <div>
-                            <button class="btn btn-outline-primary btn-sm me-2" onclick="loadJobDetail('${job.id}')">View Analysis</button>
+                            <a href="/job-detail/${job.id}" class="btn btn-outline-primary btn-sm me-2">View Analysis</a>
                             <a href="${job.url}" target="_blank" class="btn btn-primary btn-sm">Apply</a>
                         </div>
                     </div>
@@ -1736,9 +1736,14 @@ function renderJobsBatch(jobs) {
                         <p class="text-muted small mb-3">${job.company}</p>
                         <div class="d-flex justify-content-between align-items-center mt-auto">
                             <div class="text-primary fw-bold">${job.salary}</div>
-                            <a href="${job.url}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3">
-                                <i class="bi bi-box-arrow-up-right me-1"></i>Learn More
-                            </a>
+                            <div class="d-flex gap-2">
+                                <a href="/job-detail/${job.id}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                    <i class="bi bi-info-circle me-1"></i>Details
+                                </a>
+                                <a href="${job.url}" target="_blank" class="btn btn-sm btn-primary rounded-pill px-3">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i>Apply
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -624,50 +624,124 @@ def cv_full():
     })
 
 
-@app.route('/job/<job_id>')
-def job_detail(job_id):
+def _get_job_detail_data(job_id):
     user_state = get_user_state()
-    """Get detailed job information"""
+    """Helper to get detailed job information for both API and template"""
     try:
-        # Find job by index
-        if int(job_id) >= len(user_state['scores']):
-            return jsonify({'error': 'Job not found'}), 404
+        j = None
+        sc = 0.0
+        ex = {'components': {}}
+        
+        # 1. Try treating as index in scores
+        try:
+            idx = int(job_id)
+            if idx < len(user_state.get('scores', [])):
+                j, sc, ex = user_state['scores'][idx]
+        except (ValueError, TypeError):
+            pass
 
-        j, sc, ex = user_state['scores'][int(job_id)]
+        # 2. Try treating as actual job ID from app_state
+        if j is None:
+            if job_id in app_state.get('job_info', {}):
+                j = job_id
+            else:
+                # Search by job_id attribute in job_info
+                for node_id, info in app_state.get('job_info', {}).items():
+                    if str(info.get('job_id')) == str(job_id):
+                        j = node_id
+                        break
+        
+        if j is None:
+            return None, "Job not found"
+
         job_info = app_state['job_info'][j]
-        job_prob = job_info["prob_skills"]
+        job_prob = job_info.get("prob_skills", {})
 
-        if user_state['user_raw2can_best']:
+        # Compute match score if not already provided (e.g. from search)
+        if sc == 0.0 and user_state.get('user_prob'):
+            # This is a simplified score if we don't have the full comparison context
+            # or we could re-run the scorer for this one job.
+            # For now, we'll just show what we have.
+            pass
+
+        if user_state.get('user_raw2can_best'):
             user_prob_max_raw = {
                 canon: float(p)
                 for canon, (_, p) in user_state['user_raw2can_best'].items()
                 if isinstance(p, (int, float))
             }
         else:
-            user_prob_max_raw = user_state['user_prob']
+            user_prob_max_raw = user_state.get('user_prob', {})
 
         xai = explain_user_job(user_prob_max_raw, job_prob, 
-                              user_raw2can=user_state['user_raw2can_map'], 
+                              user_raw2can=user_state.get('user_raw2can_map'), 
                               job_raw2can=job_info.get('raw2can'))
 
         detail = {
+            'id': job_id,
             'title': job_info['title'],
             'company': job_info.get('company', 'N/A'),
             'city': job_info['city'],
             'url': job_info['url'],
+            'description': job_info.get('description', ''),
+            'requirements': job_info.get('requirements', ''),
+            'benefits': job_info.get('benefits', ''),
             'score': sc,
-            'components': ex['components'],
+            'components': ex.get('components', {}),
             'skill_coverage': f"{xai['components']['skill_coverage']*100:.1f}%",
-            'matched_skills': xai['evidence']['matched_skills'][:10],
-            'missing_skills': xai['evidence']['missing_skills'][:10],
+            'matched_skills': xai['evidence']['matched_skills'][:15],
+            'missing_skills': [
+                {
+                    'name': s,
+                    'tip': f"Focus on {s} to improve your profile.",
+                    'url': f"https://www.google.com/search?q=learn+{s}+online+course"
+                } for s in xai['evidence']['missing_skills'][:10]
+            ],
+            'ai_insight': _generate_ai_insight(sc, xai['evidence']['matched_skills'])
         }
+        return detail, None
 
-        return jsonify(detail)
-
-    except ValueError:
-        return jsonify({'error': 'Invalid job id'}), 400
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return None, str(e)
+
+def _generate_ai_insight(score, matched_skills):
+    """Generate dynamic AI insight based on match score and skills"""
+    if score >= 0.85:
+        base = "You are an exceptional match for this role!"
+    elif score >= 0.65:
+        base = "You are a strong candidate for this position."
+    elif score >= 0.45:
+        base = "You have a good foundation for this role, though some gaps exist."
+    else:
+        base = "This role might be a stretch, but your core skills are relevant."
+    
+    skill_part = ""
+    if matched_skills:
+        skill_part = f" Your expertise in {matched_skills[0]} is a key asset here."
+        
+    return f"{base}{skill_part} Highlight your adaptability and willingness to learn missing requirements."
+
+@app.route('/job/<job_id>')
+def job_detail_api(job_id):
+    """API endpoint for job details (JSON)"""
+    detail, error = _get_job_detail_data(job_id)
+    if error:
+        status_code = 404 if "not found" in error.lower() else 400
+        return jsonify({'error': error}), status_code
+    return jsonify(detail)
+
+@app.route('/job-detail/<job_id>')
+def job_detail_page(job_id):
+    """Render a dedicated job detail page"""
+    detail, error = _get_job_detail_data(job_id)
+    if error:
+        # Check if error is job not found
+        if "not found" in str(error).lower():
+            return render_template('pages/job_detail.html', error="Job Not Found", job=None), 404
+        return render_template('index.html', error=error)
+    return render_template('pages/job_detail.html', job=detail)
 
 @app.route('/user-skills')
 def user_skills():

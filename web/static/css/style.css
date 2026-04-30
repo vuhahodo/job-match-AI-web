@@ -24,6 +24,7 @@
 
     --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --score-track: #e5e7eb;
 
     /* Legacy Map */
     --background-color: var(--bg-body);
@@ -42,6 +43,7 @@
     /* Re-map light bg to dark for some utility classes */
     --background-color: var(--bg-body);
     --text-primary: var(--text-color);
+    --score-track: rgba(255, 255, 255, 0.1);
     
     /* Bootstrap color overrides for dark mode readability */
     --bs-body-color: var(--text-color);
@@ -58,8 +60,10 @@
 
 [data-theme="dark"] .card, 
 [data-theme="dark"] .modal-content,
+[data-theme="dark"] .job-card,
 .dark-mode .card,
-.dark-mode .modal-content {
+.dark-mode .modal-content,
+.dark-mode .job-card {
     background-color: var(--bg-card) !important;
     color: var(--text-color) !important;
     border-color: var(--border-color) !important;
@@ -100,14 +104,27 @@
 
 [data-theme="dark"] .bg-light,
 [data-theme="dark"] .bg-white,
+[data-theme="dark"] .job-card,
 .dark-mode .bg-light,
-.dark-mode .bg-white {
+.dark-mode .bg-white,
+.dark-mode .job-card {
     background-color: var(--bg-card) !important;
+    color: var(--text-color) !important;
 }
 
 [data-theme="dark"] .navbar,
 .dark-mode .navbar {
-    background-color: var(--glass-bg);
+    background-color: var(--glass-bg) !important;
+    border-bottom-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .shadow-sm,
+[data-theme="dark"] .shadow,
+[data-theme="dark"] .shadow-lg,
+.dark-mode .shadow-sm,
+.dark-mode .shadow,
+.dark-mode .shadow-lg {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important;
 }
 
 [data-theme="dark"] .nav-link,
@@ -206,6 +223,18 @@
 [data-theme="dark"] .text-secondary,
 .dark-mode .text-secondary {
     color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .btn-outline-secondary,
+.dark-mode .btn-outline-secondary {
+    color: #cbd5e1 !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+[data-theme="dark"] .btn-outline-secondary:hover,
+.dark-mode .btn-outline-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    color: white !important;
 }
 
 [data-theme="dark"] .text-dark,
@@ -650,7 +679,8 @@ body {
     padding: 1.5rem;
     margin-bottom: 1rem;
     transition: all 0.2s;
-    background: white;
+    background: var(--bg-card);
+    color: var(--text-color);
 }
 
 .job-card:hover {
