@@ -56,33 +56,10 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+from web.migrations import run_migrations
+
 def init_db():
-    conn = get_db()
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS user_sessions (
-        session_id TEXT PRIMARY KEY,
-        cv_filename TEXT,
-        cv_text TEXT,
-        user_prob TEXT,
-        scores TEXT,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS password_resets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT NOT NULL,
-        reset_token TEXT UNIQUE NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        used INTEGER DEFAULT 0
-    )''')
-    conn.commit()
-    conn.close()
+    run_migrations(DB_PATH)
 
 # Initialize DB on startup
 init_db()
