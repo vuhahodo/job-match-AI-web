@@ -1,54 +1,142 @@
 {
     "kanban": {
-        "saved": [],
+        "saved": [
+            {
+                "id": "kb_20260418025048",
+                "title": "AI",
+                "company": "tp",
+                "loc": "hcm",
+                "date": "Apr 18, 2026"
+            }
+        ],
         "applied": [],
         "interview": [],
         "offer": []
     },
     "activity": [
         {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 2 skills from cv mau.pdf",
-            "time": "01:25 PM, Apr 17",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "01:24 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
         },
         {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 2 skills from cv mau.pdf",
-            "time": "12:50 PM, Apr 17",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "01:24 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
         },
         {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 2 skills from cv mau.pdf",
-            "time": "12:45 PM, Apr 17",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "01:24 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
         },
         {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 2 skills from cv mau.pdf",
-            "time": "12:33 PM, Apr 17",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "01:24 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
         },
         {
-            "type": "system",
-            "title": "Welcome",
-            "subtitle": "Dashboard initialized",
-            "time": "Just now",
-            "icon": "bi-info-circle",
-            "color": "primary"
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "01:23 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "01:23 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:41 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:39 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:39 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:39 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:39 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:39 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:39 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:36 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:36 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
         }
     ],
     "stats": {
-        "scans": 4,
-        "matches": 0
+        "scans": 10,
+        "matches": 34
     }
 }
