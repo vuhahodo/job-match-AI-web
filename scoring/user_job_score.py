@@ -1,9 +1,11 @@
 from utils.text_processing import norm_text, role_sim, exp_sim, location_match_score
 from scoring.xai import explain_user_job
+from scoring.skill_variants import detect_domain
 
 def user_job_score(user_prob, user_city, user_detail, job_node, job_info, 
                    IDX, X, cv_vec, tfidf, user_role_can, user_exp_bucket,
-                   pseudo_text="", user_raw2can_best=None, user_raw2can_map=None):
+                   pseudo_text="", user_raw2can_best=None, user_raw2can_map=None,
+                   cv_domain="general"):
     """Calculate user-job match score"""
     if job_node not in job_info:
         return 0.0, {"error": "job_not_in_job_info"}
@@ -63,6 +65,16 @@ def user_job_score(user_prob, user_city, user_detail, job_node, job_info,
         W['sal'] * s_sal
     )
 
+    # Domain Filtering logic
+    job_text = f"{job['title']} {job.get('description', '')} {job.get('requirements', '')}"
+    job_domain = detect_domain(job_text)
+    
+    if cv_domain != "general" and job_domain != "general":
+        # Check for cross-domain mismatch
+        if cv_domain != job_domain:
+            # Heavy penalty for cross-domain noise
+            score *= 0.25
+
     explain = {
         "components": {
             "skill": round(s_skill, 3),
@@ -89,17 +101,21 @@ def user_job_score(user_prob, user_city, user_detail, job_node, job_info,
 
 def compute_user_job_scores(job_nodes, job_info, user_prob, user_city, user_detail,
                             IDX, X, cv_vec, tfidf, user_role_can, user_exp_bucket,
-                            user_raw2can_best=None, user_raw2can_map=None):
+                            user_raw2can_best=None, user_raw2can_map=None,
+                            cv_text=""):
     """Compute scores for all jobs"""
     scores = []
     valid_job_nodes = [j for j in job_nodes if j in job_info]
+    
+    cv_domain = detect_domain(cv_text) if cv_text else "general"
 
     for j in valid_job_nodes:
         sc, ex = user_job_score(
             user_prob, user_city, user_detail, j, job_info,
             IDX, X, cv_vec, tfidf, user_role_can, user_exp_bucket,
             user_raw2can_best=user_raw2can_best,
-            user_raw2can_map=user_raw2can_map
+            user_raw2can_map=user_raw2can_map,
+            cv_domain=cv_domain
         )
         scores.append((j, sc, ex))
 

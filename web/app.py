@@ -16,7 +16,8 @@ from sklearn.preprocessing import normalize
 
 from config import (
     TOPK_USER_JOB, CORE_SKILLS_CANON, SIM_THRESHOLD, 
-    CANDIDATES_TOP, TOPK_SIMILAR, MIN_KEEP_PROB
+    CANDIDATES_TOP, TOPK_SIMILAR, MIN_KEEP_PROB,
+    SKILL_LEXICON, SECTION_WEIGHT, DOMAIN_SKILL_LEXICON, DOMAIN_KEYWORDS
 )
 from utils.data_loader import load_excel_file, load_pdf_file, extract_all_text_from_pdf
 from utils.text_processing import (
@@ -59,10 +60,16 @@ def get_db():
 from web.migrations import run_migrations
 
 def init_db():
-    run_migrations(DB_PATH)
+    # Only run migrations if the database file doesn't exist
+    if not os.path.exists(DB_PATH):
+        print(f"[INFO] Database not found at {DB_PATH}. Initializing for the first time...")
+        run_migrations(DB_PATH)
+    else:
+        # DB exists, we assume it's already migrated
+        pass
 
 # Initialize DB on startup
-init_db()
+init_db() 
 
 # Session-scoped state (user-specific)
 # Defined below in the app_state section to keep related data together
@@ -416,7 +423,7 @@ def results_page():
 def graph_page():
     return render_template('pages/graph.html')
 
-@app.route('/skills-page')
+@app.route('/skills_page')
 def skills_page():
     return render_template('pages/skills.html')
 
@@ -536,7 +543,8 @@ def upload_files():
             scores = compute_user_job_scores(
                 job_nodes, job_info, user_prob, user_city, user_detail,
                 IDX, X, cv_vec, tfidf, user_state['user_role_can'], 
-                user_state['user_exp_bucket'], user_raw2can_best, user_raw2can_map
+                user_state['user_exp_bucket'], user_raw2can_best, user_raw2can_map,
+                cv_text
             )
             user_state['scores'] = scores
             persist_user_state(user_state)
@@ -607,8 +615,18 @@ def cv_full():
     email_match = re.search(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}', cv_text)
     phone_match = re.search(r'(?:\+84|0)\s*\d[\d\s.\-]{7,12}', cv_text)
     
-    skills = list(user_state.get('user_prob', {}).keys())
+    user_prob = user_state.get('user_prob', {})
+    skills_list = []
+    for s, p in user_prob.items():
+        skills_list.append({
+            'name': s,
+            'prob': round(p * 100, 1),
+            'is_core': s in CORE_SKILLS_CANON
+        })
     
+    # Sort skills by probability
+    skills_list.sort(key=lambda x: x['prob'], reverse=True)
+
     return jsonify({
         'active': True,
         'cv_text': cv_text,
@@ -618,8 +636,10 @@ def cv_full():
         'city': user_state.get('user_city', 'Unknown'),
         'email': email_match.group(0) if email_match else '',
         'phone': re.sub(r'\s+', '', phone_match.group(0)) if phone_match else '',
-        'skills': skills[:20],
-        'skills_count': len(skills),
+        'skills': [s['name'] for s in skills_list[:20]], # for backward compatibility
+        'detailed_skills': skills_list,
+        'skills_count': len(skills_list),
+        'core_skills_count': sum(1 for s in skills_list if s['is_core']),
         'filename': user_state.get('cv_filename', ''),
     })
 
@@ -692,9 +712,9 @@ def _get_job_detail_data(job_id):
             'matched_skills': xai['evidence']['matched_skills'][:15],
             'missing_skills': [
                 {
-                    'name': s,
-                    'tip': f"Focus on {s} to improve your profile.",
-                    'url': f"https://www.google.com/search?q=learn+{s}+online+course"
+                    'name': s['skill'],
+                    'tip': f"Focus on {s['skill']} to improve your profile.",
+                    'url': f"https://www.google.com/search?q=learn+{s['skill']}+online+course"
                 } for s in xai['evidence']['missing_skills'][:10]
             ],
             'ai_insight': _generate_ai_insight(sc, xai['evidence']['matched_skills'])

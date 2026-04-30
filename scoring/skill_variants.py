@@ -7,7 +7,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from functools import lru_cache
 from utils.text_processing import norm_text, split_cv_sections, _combine_probs, sid
-from config import SKILL_LEXICON, SECTION_WEIGHT, MIN_KEEP_PROB, CORE_SKILLS_CANON
+from config import SKILL_LEXICON, SECTION_WEIGHT, MIN_KEEP_PROB, CORE_SKILLS_CANON, DOMAIN_SKILL_LEXICON, DOMAIN_KEYWORDS
 def _compile_skill_patterns(lexicon: dict):
     """Compile skill pattern regexes"""
     comp = {}
@@ -52,6 +52,36 @@ def best_canonical_match(phrase: str):
     best_canon = _skill_to_canon[best_idx]
     return best_canon, best_score
 
+def detect_domain(text: str):
+    """Detect domain from text based on keywords and skills"""
+    txt_norm = norm_text(text)
+    scores = {}
+    
+    # 1. Check direct keywords (higher weight = 3)
+    for dom, keywords in DOMAIN_KEYWORDS.items():
+        score = sum(3 for k in keywords if k in txt_norm)
+        if score > 0:
+            scores[dom] = score
+    
+    # 2. Check skills from DOMAIN_SKILL_LEXICON (weight = 1)
+    for dom, skills in DOMAIN_SKILL_LEXICON.items():
+        if dom == "general":
+            continue
+        skill_score = 0
+        for canon, aliases in skills.items():
+            for a in aliases:
+                # Use word boundaries for better accuracy if possible, 
+                # but simple 'in' check is consistent with previous logic
+                if a in txt_norm:
+                    skill_score += 1
+                    break 
+        scores[dom] = scores.get(dom, 0) + skill_score
+    
+    if not scores:
+        return "general"
+    
+    return max(scores, key=scores.get)
+
 def extract_skills_probabilistic(text: str, min_keep=MIN_KEEP_PROB):
     """Extract skills with probabilistic scoring"""
     sections = split_cv_sections(text)
@@ -80,6 +110,33 @@ def extract_skills_probabilistic(text: str, min_keep=MIN_KEEP_PROB):
                 raw_hits[canon].append(("alias_hit", sec, span))
 
     skills_prob = {k: round(v, 3) for k, v in skills_prob.items() if v >= min_keep}
+
+    # Domain-based Filtering & Boosting
+    detected_dom = detect_domain(text)
+    
+    if detected_dom != "general":
+        # 1. Identify skills belonging to other SPECIFIC domains (excluding general)
+        other_domains = [d for d in DOMAIN_SKILL_LEXICON.keys() if d not in [detected_dom, "general"]]
+        irrelevant_skills = set()
+        for d in other_domains:
+            irrelevant_skills.update(DOMAIN_SKILL_LEXICON[d].keys())
+        
+        # 2. Boost skills from the detected domain
+        domain_skills = set(DOMAIN_SKILL_LEXICON.get(detected_dom, {}).keys())
+        for s in domain_skills:
+            if s in skills_prob:
+                skills_prob[s] = round(max(skills_prob[s], 0.75), 3)
+        
+        # 3. Suppress/Filter skills from other domains if not explicitly high-probability
+        for s in list(skills_prob.keys()):
+            if s in irrelevant_skills and s not in domain_skills:
+                # If it's a cross-domain skill, reduce its probability or remove it
+                # We keep it only if it was very strongly detected (e.g. > 0.6)
+                if skills_prob[s] < 0.6:
+                    skills_prob.pop(s)
+                else:
+                    skills_prob[s] = round(skills_prob[s] * 0.5, 3)
+
     return skills_prob, dict(raw_hits)
 
 def weighted_skill_overlap_prob(user_prob: dict, job_prob: dict):

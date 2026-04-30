@@ -123,11 +123,29 @@ def location_match_score(user_city, user_detail, job_city, job_detail):
 
 # ROLE PARSING
 def infer_role_canonical(title: str) -> str:
-    """Infer canonical role from title"""
+    """Infer canonical role from title using frequency-based keyword matching"""
     t = norm_text(title)
+    if not t:
+        return "Other"
+        
+    counts = defaultdict(int)
     for pat, role in ROLE_PATTERNS:
-        if re.search(pat, t):
-            return role
+        # findall returns all non-overlapping matches
+        matches = re.findall(pat, t)
+        counts[role] += len(matches)
+    
+    if not counts:
+        return "Other"
+        
+    # Get the role with the maximum count. 
+    # In case of ties, the order in ROLE_PATTERNS still acts as a priority 
+    # because of how we iterate, but frequency is the primary driver.
+    best_role = max(counts.items(), key=lambda x: x[1])
+    
+    # Only return if we actually found matches
+    if best_role[1] > 0:
+        return best_role[0]
+        
     return "Other"
 
 def infer_role_raw(title: str) -> str:
