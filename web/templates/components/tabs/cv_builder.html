@@ -624,6 +624,12 @@
         box-shadow: none;
     }
 
+    [data-theme="dark"] .accordion-button:not(.collapsed),
+    .dark-mode .accordion-button:not(.collapsed) {
+        background: linear-gradient(90deg, #1e293b 0%, #111827 100%) !important;
+        color: var(--primary-color) !important;
+    }
+
     .accordion-button:focus {
         box-shadow: none;
     }
@@ -787,12 +793,16 @@
         }
     }
 
-    // Override updateCV to update all templates
-    const originalUpdateCV = window.updateCV;
-    window.updateCV = function () {
-        if (originalUpdateCV) originalUpdateCV();
+    // Override updateCV to update all templates after main.js is loaded
+    window.addEventListener('load', () => {
+        const originalUpdateCV = window.updateCV;
+        window.updateCV = function () {
+            if (originalUpdateCV) originalUpdateCV();
+            updateAllTemplates();
+        };
+        // Initial update
         updateAllTemplates();
-    };
+    });
 
     // Download CV as PDF function
     function downloadCV() {

@@ -299,6 +299,46 @@
     background: #020617 !important;
 }
 
+/* CV Builder Template Dark Mode Overrides */
+[data-theme="dark"] .cv-template,
+.dark-mode .cv-template {
+    background-color: var(--bg-card) !important;
+    color: var(--text-color) !important;
+}
+
+/* Classic Template Dark Mode */
+[data-theme="dark"] .cv-template-classic .cv-header,
+.dark-mode .cv-template-classic .cv-header {
+    background-color: #1a1a2e !important;
+    border-bottom-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .cv-template-classic h2,
+[data-theme="dark"] .cv-template-classic h5,
+[data-theme="dark"] .cv-template-classic h6,
+.dark-mode .cv-template-classic h2,
+.dark-mode .cv-template-classic h5,
+.dark-mode .cv-template-classic h6 {
+    color: var(--text-color) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Creative Template Dark Mode */
+[data-theme="dark"] .cv-template-creative .col-8,
+.dark-mode .cv-template-creative .col-8 {
+    background-color: var(--bg-card) !important;
+}
+
+[data-theme="dark"] .cv-template-creative h5,
+.dark-mode .cv-template-creative h5 {
+    color: var(--text-color) !important;
+}
+
+[data-theme="dark"] .cv-template-creative .text-secondary,
+.dark-mode .cv-template-creative .text-secondary {
+    color: #94a3b8 !important;
+}
+
 [data-theme="dark"] .progress,
 .dark-mode .progress {
     background-color: rgba(255, 255, 255, 0.1) !important;
