@@ -18,7 +18,7 @@
             "type": "match",
             "title": "Global Search",
             "subtitle": "Found 500 jobs matching ''",
-            "time": "06:36 PM, Apr 21",
+            "time": "01:24 PM, Apr 30",
             "icon": "bi-lightning-charge",
             "color": "danger"
         },
@@ -26,7 +26,7 @@
             "type": "match",
             "title": "Global Search",
             "subtitle": "Found 500 jobs matching ''",
-            "time": "06:36 PM, Apr 21",
+            "time": "01:24 PM, Apr 30",
             "icon": "bi-lightning-charge",
             "color": "danger"
         },
@@ -34,7 +34,7 @@
             "type": "match",
             "title": "Global Search",
             "subtitle": "Found 500 jobs matching ''",
-            "time": "06:34 PM, Apr 21",
+            "time": "01:24 PM, Apr 30",
             "icon": "bi-lightning-charge",
             "color": "danger"
         },
@@ -42,31 +42,7 @@
             "type": "match",
             "title": "Global Search",
             "subtitle": "Found 500 jobs matching ''",
-            "time": "06:34 PM, Apr 21",
-            "icon": "bi-lightning-charge",
-            "color": "danger"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 4 skills from cv_1.pdf",
-            "time": "06:34 PM, Apr 21",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 4 skills from cv_1.pdf",
-            "time": "06:32 PM, Apr 21",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "match",
-            "title": "Global Search",
-            "subtitle": "Found 500 jobs matching ''",
-            "time": "03:41 PM, Apr 18",
+            "time": "01:24 PM, Apr 30",
             "icon": "bi-lightning-charge",
             "color": "danger"
         },
@@ -74,23 +50,7 @@
             "type": "match",
             "title": "Global Search",
             "subtitle": "Found 500 jobs matching ''",
-            "time": "03:41 PM, Apr 18",
-            "icon": "bi-lightning-charge",
-            "color": "danger"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 4 skills from cv_1.pdf",
-            "time": "03:23 PM, Apr 18",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "match",
-            "title": "Global Search",
-            "subtitle": "Found 500 jobs matching ''",
-            "time": "03:01 PM, Apr 18",
+            "time": "01:23 PM, Apr 30",
             "icon": "bi-lightning-charge",
             "color": "danger"
         },
@@ -98,23 +58,7 @@
             "type": "match",
             "title": "Global Search",
             "subtitle": "Found 500 jobs matching ''",
-            "time": "03:01 PM, Apr 18",
-            "icon": "bi-lightning-charge",
-            "color": "danger"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 4 skills from cv_1.pdf",
-            "time": "02:09 PM, Apr 18",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "match",
-            "title": "Global Search",
-            "subtitle": "Found 500 jobs matching ''",
-            "time": "02:08 PM, Apr 18",
+            "time": "01:23 PM, Apr 30",
             "icon": "bi-lightning-charge",
             "color": "danger"
         },
@@ -122,7 +66,7 @@
             "type": "match",
             "title": "Global Search",
             "subtitle": "Found 500 jobs matching ''",
-            "time": "02:08 PM, Apr 18",
+            "time": "12:41 PM, Apr 30",
             "icon": "bi-lightning-charge",
             "color": "danger"
         },
@@ -130,13 +74,69 @@
             "type": "match",
             "title": "Global Search",
             "subtitle": "Found 500 jobs matching ''",
-            "time": "02:05 PM, Apr 18",
+            "time": "12:39 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:39 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:39 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:39 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:39 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:39 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:36 PM, Apr 30",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "12:36 PM, Apr 30",
             "icon": "bi-lightning-charge",
             "color": "danger"
         }
     ],
     "stats": {
-        "scans": 9,
-        "matches": 14
+        "scans": 10,
+        "matches": 34
     }
 }

@@ -67,7 +67,7 @@ Dùng **global dict `state`** trong `app.py` (in-process, không dùng session/D
 | Login/Register (mock) | ⚠️ Chỉ là mock | Không có backend auth thật |
 | My Skills (`/skills-page`) | ⚠️ Cần CV | Crash nếu chưa upload CV |
 | DB Stats (`/stats-page`) | ⚠️ Cần CV | Crash nếu chưa upload CV |
-| Dark mode | ✅ Hoạt động | localStorage |
+| Dark mode | ✅ Hoạt động | localStorage | ⚠️ màu chữ đen, hình ảnh bị ẩn đi
 
 ---
 
