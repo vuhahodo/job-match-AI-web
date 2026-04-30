@@ -9,6 +9,8 @@ from time import perf_counter
 from werkzeug.utils import secure_filename
 import pandas as pd
 import numpy as np
+import uuid
+from werkzeug.security import generate_password_hash, check_password_hash
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import normalize
 
@@ -70,34 +72,8 @@ def init_db():
 # Initialize DB on startup
 init_db()
 
-user_sessions_store = {}
-SESSION_LIFETIME = 3600 * 24 # 24 hours
-
-def cleanup_stale_sessions():
-    now = time.time()
-    stale_sids = [sid for sid, data in user_sessions_store.items() if now - data.get('last_active', 0) > SESSION_LIFETIME]
-    for sid in stale_sids:
-        del user_sessions_store[sid]
-    # Keep max 100 sessions to avoid memory ballooning
-    if len(user_sessions_store) > 100:
-        oldest = min(user_sessions_store.keys(), key=lambda k: user_sessions_store[k].get('last_active', 0))
-        del user_sessions_store[oldest]
-
-def get_user_state():
-    cleanup_stale_sessions()
-    if 'session_id' not in session:
-        session['session_id'] = str(uuid.uuid4())
-    sid = session['session_id']
-    if sid not in user_sessions_store:
-        user_sessions_store[sid] = {
-            'cv_text': None, 'USER_ID': None, 'scores': None, 'user_prob': None,
-            'user_city': None, 'user_detail': None, 'user_role_can': None,
-            'user_exp_bucket': None, 'user_raw2can_best': None, 'user_raw2can_map': None,
-            'current_G': None, 'cv_vec': None, 'cv_filename': None,
-            'last_active': time.time()
-        }
-    user_sessions_store[sid]['last_active'] = time.time()
-    return user_sessions_store[sid]
+# Session-scoped state (user-specific)
+# Defined below in the app_state section to keep related data together
 
 @app.route('/api/register', methods=['POST'])
 def register():
@@ -1590,17 +1566,20 @@ def api_search():
                     kw_mask |= df[col].astype(str).str.lower().str.contains(keyword_escaped, na=False, regex=True)
             mask &= kw_mask
 
-    # 2. Location Filter
+    # 2. Location Filter (Enhanced with VN mappings)
     if location and location != 'all locations':
-        if location == 'remote':
-            mask &= df['location'].str.lower().str.contains('remote', na=False)
-        else:
-            mask &= df['location'].str.lower().str.contains(location, na=False)
+        loc_map = {
+            'ho chi minh city': 'hồ chí minh|hcm|tp. hcm|tphcm|sài gòn',
+            'hanoi': 'hà nội|hanoi|hn',
+            'da nang': 'đà nẵng|đà nẵng|dn',
+            'remote': 'remote|từ xa|work from home|wfh'
+        }
+        pattern = loc_map.get(location, location)
+        mask &= df['location'].str.lower().str.contains(pattern, na=False, regex=True)
 
-    # 3. Job Type Filter (Only apply if NOT all options selected)
+    # 3. Job Type Filter (Enhanced)
     if job_types:
         type_list = [t.strip() for t in job_types.split(',') if t.strip()]
-        # If all 4 types selected, skip filter (means "All")
         if len(type_list) < 4:
             t_mask = pd.Series([False] * len(df))
             for t in type_list:
@@ -1614,21 +1593,27 @@ def api_search():
                     t_mask |= df['job_type'].str.lower().str.contains('thực tập|hợp đồng|freelance|contract|intern', na=False, regex=True)
             mask &= t_mask
 
-    # 4. Experience Filter (Only apply if NOT all options selected)
+    # 4. Experience Filter (Broadened to Title, Experience, Requirements)
     if exp_levels:
         exp_list = [e.strip() for e in exp_levels.split(',') if e.strip()]
-        # If all 4 experience levels selected, skip filter (means "All")
         if len(exp_list) < 4:
             exp_mask = pd.Series([False] * len(df))
+            search_fields = ['job_title', 'experience', 'requirements']
             for level in exp_list:
+                level_pat = ''
                 if level == 'intern':
-                    exp_mask |= df['job_title'].str.lower().str.contains('intern|fresher|thực tập|mới tốt nghiệp|sinh viên', na=False, regex=True)
+                    level_pat = 'intern|fresher|thực tập|mới tốt nghiệp|sinh viên|trainee'
                 elif level == 'junior':
-                    exp_mask |= df['job_title'].str.lower().str.contains('junior|entry|nhân viên|nv|1 năm|2 năm|1-2', na=False, regex=True)
+                    level_pat = 'junior|entry|nhân viên|nv|1 năm|2 năm|1-2|0-2'
                 elif level == 'senior':
-                    exp_mask |= df['job_title'].str.lower().str.contains('senior|expert|middle|chuyên gia|3 năm|4 năm|5 năm', na=False, regex=True)
+                    level_pat = 'senior|expert|middle|chuyên gia|3 năm|4 năm|5 năm|3-5'
                 elif level == 'lead':
-                    exp_mask |= df['job_title'].str.lower().str.contains('lead|manager|head|director|trưởng|giám đốc|quản lý', na=False, regex=True)
+                    level_pat = 'lead|manager|head|director|trưởng|giám đốc|quản lý|architect'
+                
+                if level_pat:
+                    for field in search_fields:
+                        if field in df.columns:
+                            exp_mask |= df[field].str.lower().str.contains(level_pat, na=False, regex=True)
             mask &= exp_mask
 
     filtered_df = df[mask]
@@ -1690,13 +1675,13 @@ def api_search():
     output = []
     for _, row in results.iterrows():
         output.append({
-            'id': row.get('id', ''),
+            'id': row.get('job_id', ''),
             'title': row.get('job_title', 'Unknown Role'),
             'company': row.get('company', 'Unknown Company'),
             'location': row.get('location', 'Remote'),
             'salary': row.get('salary', 'Thỏa thuận'),
             'url': row.get('job_url', '#'),
-            'type': 'Full-time'
+            'type': row.get('job_type', 'Full-time')
         })
     
     if output:
