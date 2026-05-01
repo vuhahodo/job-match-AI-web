@@ -419,21 +419,62 @@ function renderKanbanColumn(key, colId) {
     if (!col) return;
 
     col.innerHTML = KANBAN_DATA[key].map(item => `
-        <div class="card border-0 shadow-sm mb-3 kanban-card draggable" draggable="true" data-id="${item.id}" data-origin="${key}">
+        <div class="card border-0 shadow-sm mb-3 kanban-card draggable" 
+             draggable="true" 
+             data-id="${item.id}" 
+             data-origin="${key}"
+             ondblclick="${item.job_id ? `window.location.href='/job-detail/${item.job_id}'` : `showToast('Info', 'No detailed analysis linked to this manual entry', 'info')`}"
+             title="Double click to view analysis">
             <div class="card-body p-3">
-                <h6 class="fw-bold mb-1 text-truncate">${item.title}</h6>
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <h6 class="fw-bold mb-0 text-truncate" style="max-width: 80%;">
+                        ${item.job_id ? `<a href="/job-detail/${item.job_id}" class="text-decoration-none text-dark hover-primary">${item.title}</a>` : item.title}
+                    </h6>
+                    <button class="btn btn-sm btn-link text-danger p-0 border-0" onclick="deleteKanbanItem('${key}', '${item.id}')" title="Remove">
+                        <i class="bi bi-trash small"></i>
+                    </button>
+                </div>
                 <div class="text-muted small mb-2">${item.company}</div>
                 <div class="d-flex justify-content-between align-items-center">
-                    <span class="badge bg-light text-dark border"><i class="bi bi-geo-alt me-1"></i>${item.loc}</span>
+                    <div class="d-flex gap-2 align-items-center">
+                        <span class="badge bg-light text-dark border"><i class="bi bi-geo-alt me-1"></i>${item.loc}</span>
+                        ${item.url ? `<a href="${item.url}" target="_blank" class="text-primary" title="Open Job Link"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}
+                    </div>
                     <small class="text-muted" style="font-size:0.7rem">${item.date}</small>
                 </div>
             </div>
         </div>
     `).join('');
 
-    // Update badge count if exists
     const badge = col.parentElement.querySelector('.badge');
     if (badge) badge.textContent = KANBAN_DATA[key].length;
+}
+
+async function deleteKanbanItem(col, id) {
+    if (!confirm('Are you sure you want to remove this from your tracker?')) return;
+    
+    try {
+        const response = await fetch(`/api/kanban/delete/${col}/${id}`, { method: 'DELETE' });
+        
+        // Nếu server xóa thành công HOẶC server không tìm thấy (do là dữ liệu mẫu cũ), 
+        // chúng ta vẫn xóa ở giao diện để người dùng không bị kẹt.
+        if (response.ok || response.status === 404) {
+            const index = KANBAN_DATA[col].findIndex(i => i.id === id);
+            if (index > -1) {
+                KANBAN_DATA[col].splice(index, 1);
+                localStorage.setItem('kanbanData', JSON.stringify(KANBAN_DATA));
+                renderAllColumns();
+                setupDragAndDrop(); // Quan trọng: Kích hoạt lại kéo thả
+                renderDashboardStats();
+                showToast('Removed', 'Application removed from tracker', 'info');
+            }
+        } else {
+            throw new Error('Server error');
+        }
+    } catch (e) {
+        console.error('Delete failed:', e);
+        showToast('Error', 'Failed to delete item from server', 'danger');
+    }
 }
 
 /* --- Drag & Drop Logic --- */
@@ -512,6 +553,7 @@ async function handleAddApp(e) {
     const title = document.getElementById('appTitle').value;
     const company = document.getElementById('appCompany').value;
     const loc = document.getElementById('appLocation').value;
+    const url = document.getElementById('appUrl').value;
     const status = document.getElementById('appStatus').value;
 
     const btn = e.target.querySelector('button[type="submit"]');
@@ -522,7 +564,7 @@ async function handleAddApp(e) {
         const response = await fetch('/api/kanban/add', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ title, company, loc, status })
+            body: JSON.stringify({ title, company, loc, status, url })
         });
         const result = await response.json();
         
@@ -803,9 +845,11 @@ async function loadResults() {
                                 </div>
                             </div>
                         </div>
-                        <div>
-                            <a href="/job-detail/${job.id}" class="btn btn-outline-primary btn-sm me-2">View Analysis</a>
-                            <a href="${job.url}" target="_blank" class="btn btn-primary btn-sm">Apply</a>
+                        <div class="ms-3" style="min-width: 140px;">
+                            <div class="d-flex flex-column gap-2">
+                                <a href="/job-detail/${job.id}" class="btn btn-outline-primary btn-sm w-100">View Analysis</a>
+                                <a href="${job.url}" target="_blank" class="btn btn-primary btn-sm w-100">Apply</a>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -1996,11 +2040,11 @@ function renderJobsBatch(jobs) {
                         <p class="text-muted small mb-3">${job.company}</p>
                         <div class="d-flex justify-content-between align-items-center mt-auto">
                             <div class="text-primary fw-bold">${job.salary}</div>
-                            <div class="d-flex gap-2">
-                                <a href="/job-detail/${job.id}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                            <div class="d-flex flex-column gap-2" style="min-width: 120px;">
+                                <a href="/job-detail/${job.id}" class="btn btn-sm btn-outline-primary rounded-pill px-3 w-100">
                                     <i class="bi bi-info-circle me-1"></i>Details
                                 </a>
-                                <a href="${job.url}" target="_blank" class="btn btn-sm btn-primary rounded-pill px-3">
+                                <a href="${job.url}" target="_blank" class="btn btn-sm btn-primary rounded-pill px-3 w-100">
                                     <i class="bi bi-box-arrow-up-right me-1"></i>Apply
                                 </a>
                             </div>

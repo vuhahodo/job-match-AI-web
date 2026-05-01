@@ -467,7 +467,9 @@ def add_kanban_item():
         "title": item.get('title'),
         "company": item.get('company'),
         "loc": item.get('loc', 'Unknown'),
-        "date": datetime.now().strftime("%b %d, %Y")
+        "date": datetime.now().strftime("%b %d, %Y"),
+        "job_id": item.get('job_id'),
+        "url": item.get('url')
     }
     
     if status in data['kanban']:
@@ -476,6 +478,17 @@ def add_kanban_item():
         save_dashboard_data(data)
         return jsonify({'success': True, 'item': new_card})
     return jsonify({'error': 'Invalid status'}), 400
+
+@app.route('/api/kanban/delete/<col>/<item_id>', methods=['DELETE'])
+def delete_kanban_item(col, item_id):
+    data = load_dashboard_data()
+    if col in data['kanban']:
+        original_len = len(data['kanban'][col])
+        data['kanban'][col] = [i for i in data['kanban'][col] if i['id'] != item_id]
+        if len(data['kanban'][col]) < original_len:
+            save_dashboard_data(data)
+            return jsonify({'success': True})
+    return jsonify({'error': 'Item not found'}), 404
 
 @app.route('/upload', methods=['POST'])
 def upload_files():
@@ -653,14 +666,22 @@ def _get_job_detail_data(job_id):
         ex = {'components': {}}
         
         # 1. Try treating as index in scores
+        scores = user_state.get('scores') or []
         try:
             idx = int(job_id)
-            if idx < len(user_state.get('scores', [])):
-                j, sc, ex = user_state['scores'][idx]
+            if idx < len(scores):
+                j, sc, ex = scores[idx]
         except (ValueError, TypeError):
             pass
 
-        # 2. Try treating as actual job ID from app_state
+        # 2. Try searching by job node ID in the scores list
+        if j is None and scores:
+            for sj, ssc, sex in scores:
+                if str(sj) == str(job_id):
+                    j, sc, ex = sj, ssc, sex
+                    break
+
+        # 3. Try treating as actual job ID from app_state
         if j is None:
             if job_id in app_state.get('job_info', {}):
                 j = job_id
@@ -678,11 +699,35 @@ def _get_job_detail_data(job_id):
         job_prob = job_info.get("prob_skills", {})
 
         # Compute match score if not already provided (e.g. from search)
-        if sc == 0.0 and user_state.get('user_prob'):
-            # This is a simplified score if we don't have the full comparison context
-            # or we could re-run the scorer for this one job.
-            # For now, we'll just show what we have.
-            pass
+        if sc == 0.0 and user_state.get('user_prob') and app_state.get('is_ready'):
+            try:
+                from scoring.user_job_score import user_job_score
+                
+                cv_vec = user_state.get('cv_vec')
+                if cv_vec is None and user_state.get('cv_text'):
+                    # Reconstruct vector if session was restored from DB
+                    cv_vec = normalize(app_state['tfidf'].transform([norm_text(user_state['cv_text'])]))
+                
+                if cv_vec is not None:
+                    sc, ex = user_job_score(
+                        user_state.get('user_prob'),
+                        user_state.get('user_city'),
+                        user_state.get('user_detail'),
+                        j,
+                        app_state['job_info'],
+                        app_state['IDX'],
+                        app_state['X'],
+                        cv_vec,
+                        app_state['tfidf'],
+                        user_state.get('user_role_can', 'general'),
+                        user_state.get('user_exp_bucket', 'Exp_Unknown'),
+                        user_raw2can_best=user_state.get('user_raw2can_best'),
+                        user_raw2can_map=user_state.get('user_raw2can_map'),
+                        cv_domain="general"
+                    )
+            except Exception as e_score:
+                print(f"[ERROR] Recalculating score failed: {e_score}")
+                pass
 
         if user_state.get('user_raw2can_best'):
             user_prob_max_raw = {
@@ -739,7 +784,9 @@ def _generate_ai_insight(score, matched_skills):
     
     skill_part = ""
     if matched_skills:
-        skill_part = f" Your expertise in {matched_skills[0]} is a key asset here."
+        top_skill = matched_skills[0]
+        skill_name = top_skill.get('skill', top_skill) if isinstance(top_skill, dict) else top_skill
+        skill_part = f" Your expertise in {skill_name} is a key asset here."
         
     return f"{base}{skill_part} Highlight your adaptability and willingness to learn missing requirements."
 
