@@ -5,23 +5,26 @@
     .job-detail-header {
         background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
         color: white;
-        padding: 4rem 0;
+        padding: 5rem 0; /* Trở về padding cân đối */
         border-radius: 0 0 2rem 2rem;
-        margin-bottom: -2rem;
         position: relative;
-        z-index: 1;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .navbar {
+        z-index: 10000 !important; /* Ưu tiên cao nhất cho thanh điều hướng */
     }
 
     .job-detail-card {
         background: var(--card-bg, #ffffff);
         border-radius: 1.5rem;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-        border: none;
+        box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.1), 0 10px 15px -10px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border-color, rgba(0,0,0,0.05));
         position: relative;
         z-index: 2;
-        margin-top: -2rem;
         overflow: hidden;
-        min-height: 400px;
     }
 
     .score-circle {
@@ -131,6 +134,14 @@
         opacity: 1;
     }
 
+    :root {
+        --score-track: #e5e7eb;
+    }
+
+    [data-theme="dark"] {
+        --score-track: #374151;
+    }
+
     [data-theme="dark"] .job-detail-card,
     [data-theme="dark"] .score-circle::before {
         background: #1f2937;
@@ -180,10 +191,11 @@
     </div>
 </div>
 
-<div class="container pb-5">
-    <div class="job-detail-card p-4 p-md-5">
-        <div class="row g-5">
-            <div class="col-lg-8">
+<div class="container pb-5" style="margin-top: 2.6rem;">
+    <div class="row g-4">
+        <!-- Left Side: Job Content -->
+        <div class="col-lg-7">
+            <div class="job-detail-card p-4 p-md-5">
                 <div class="mb-5">
                     <h3 class="job-section-title d-flex align-items-center gap-2 mb-4">
                         <i class="bi bi-file-earmark-text text-primary"></i> Job Details
@@ -214,51 +226,16 @@
                     <p class="text-muted italic">Full details are available on the application page.</p>
                     {% endif %}
                 </div>
-
-                <div class="row">
-                    <div class="col-12 mb-5">
-                        <h3 class="job-section-title d-flex align-items-center gap-2 mb-4">
-                            <i class="bi bi-check2-circle text-success"></i> Skills You Have
-                        </h3>
-                        <div class="d-flex flex-wrap gap-2">
-                            {% for skill in job.matched_skills %}
-                            <span class="skill-badge skill-matched"><i class="bi bi-check-lg"></i> {{ skill }}</span>
-                            {% endfor %}
-                        </div>
-                    </div>
-
-                    <div class="col-12">
-                        <h3 class="job-section-title d-flex align-items-center gap-2 mb-4">
-                            <i class="bi bi-lightning-charge text-warning"></i> Growth Opportunities
-                        </h3>
-                        <div class="row g-3">
-                            {% for item in job.missing_skills %}
-                            <div class="col-md-6">
-                                <div class="skill-missing-item">
-                                    {% if item is mapping %}
-                                        <div class="fw-bold mb-1">{{ item.name }}</div>
-                                        <div class="small text-muted mb-2">{{ item.tip }}</div>
-                                        <a href="{{ item.url }}" target="_blank" class="tip-link">
-                                            Explore Courses <i class="bi bi-arrow-right"></i>
-                                        </a>
-                                    {% else %}
-                                        <div class="fw-bold mb-1">{{ item }}</div>
-                                        <div class="small text-muted mb-2">Consider enhancing your skills in this area.</div>
-                                        <a href="https://www.google.com/search?q=learn+{{ item }}+online" target="_blank" class="tip-link">
-                                            Search Learning <i class="bi bi-arrow-right"></i>
-                                        </a>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
             </div>
+        </div>
 
-            <div class="col-lg-4">
-                <div class="card bg-light border-0 rounded-4 p-4 sticky-top" style="top: 2rem;">
-                    <h4 class="fw-bold mb-4">AI Assessment</h4>
+        <!-- Right Side: AI Analysis & Skills -->
+        <div class="col-lg-5">
+            <div class="sticky-top" style="top: 6rem; z-index: 10;">
+                <div class="job-detail-card p-4 mb-4">
+                    <h4 class="fw-bold mb-4 d-flex align-items-center gap-2">
+                        <i class="bi bi-stars text-warning"></i> AI Assessment
+                    </h4>
                     
                     <div class="d-flex flex-column align-items-center mb-4">
                         <div id="scoreCircle" class="score-circle mb-3">
@@ -267,24 +244,64 @@
                         <span class="fw-bold text-muted">Matching Confidence</span>
                     </div>
 
-                    <div class="p-3 bg-white bg-opacity-50 rounded-3 border mb-4">
-                        <h6 class="fw-bold small mb-2"><i class="bi bi-stars text-warning me-2"></i>AI Insight</h6>
+                    <div class="p-3 bg-light rounded-3 border mb-4">
+                        <h6 class="fw-bold small mb-2"><i class="bi bi-chat-left-dots text-primary me-2"></i>AI Insight</h6>
                         <p class="small text-muted mb-0">{{ job.ai_insight }}</p>
                     </div>
 
                     <div class="mb-4">
-                        <div class="d-flex justify-content-between small mb-1">
-                            <span class="text-muted">Skill Match</span>
+                        <div class="d-flex justify-content-between small mb-2">
+                            <span class="text-muted">Skill Coverage</span>
                             <span class="fw-bold text-primary">{{ job.skill_coverage }}</span>
                         </div>
-                        <div class="progress" style="height: 6px; background: rgba(0,0,0,0.05);">
-                            <div class="progress-bar bg-primary" style="width: 0%; transition: width 1.5s ease-out;" id="skillProgress"></div>
+                        <div class="progress" style="height: 8px; background: rgba(0,0,0,0.05); border-radius: 4px;">
+                            <div class="progress-bar bg-primary" style="width: 0%; transition: width 1.5s ease-out; border-radius: 4px;" id="skillProgress"></div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <h6 class="fw-bold small mb-3">Matched Skills</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for skill in job.matched_skills %}
+                            <span class="skill-badge skill-matched">
+                                <i class="bi bi-check-lg"></i> 
+                                {{ skill.skill if skill is mapping else skill }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <h6 class="fw-bold small mb-3 text-warning">Missing Skills</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for item in job.missing_skills %}
+                            <span class="badge bg-light text-dark border p-2" style="font-weight: 500;">
+                                {{ item.name if item is mapping else item }}
+                            </span>
+                            {% endfor %}
                         </div>
                     </div>
 
                     <button id="saveBtn" class="btn btn-outline-primary w-100 rounded-3 py-3 fw-bold" onclick="saveJob()">
                         <i class="bi bi-bookmark me-2"></i> Save to My Tracker
                     </button>
+                </div>
+
+                <!-- Learning Recommendations -->
+                <div class="job-detail-card p-4">
+                    <h6 class="fw-bold mb-3"><i class="bi bi-mortarboard text-danger me-2"></i>Grow Your Profile</h6>
+                    <div class="row g-2">
+                        {% for item in job.missing_skills[:3] %}
+                        <div class="col-12">
+                            <div class="p-2 border rounded-3 bg-light bg-opacity-50">
+                                <div class="small fw-bold">{{ item.name if item is mapping else item }}</div>
+                                <a href="{{ item.url if item is mapping else 'https://www.google.com/search?q=learn+' + item + '+online' }}" target="_blank" class="extra-small text-danger text-decoration-none">
+                                    Recommended Course <i class="bi bi-arrow-right"></i>
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -331,7 +348,9 @@ function saveJob() {
         title: "{{ job.title }}",
         company: "{{ job.company }}",
         loc: "{{ job.city }}",
-        status: 'saved'
+        status: 'saved',
+        job_id: "{{ job.id }}",
+        url: "{{ job.url }}"
     };
     
     fetch('/api/kanban/add', {

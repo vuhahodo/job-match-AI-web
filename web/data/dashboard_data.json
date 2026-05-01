@@ -1,19 +1,74 @@
 {
     "kanban": {
-        "saved": [
-            {
-                "id": "kb_20260418025048",
-                "title": "AI",
-                "company": "tp",
-                "loc": "hcm",
-                "date": "Apr 18, 2026"
-            }
-        ],
         "applied": [],
         "interview": [],
-        "offer": []
+        "offer": [],
+        "saved": [
+            {
+                "company": "tp",
+                "date": "Just now",
+                "id": "kb_20260418025048",
+                "loc": "hcm",
+                "title": "AI"
+            },
+            {
+                "company": "Hộ Kinh Doanh Thời Trang AUGUST OFFICIAL",
+                "date": "May 01, 2026",
+                "id": "kb_20260501104542",
+                "loc": "Ha Noi",
+                "title": "FASHION DESIGNER / Thiết Kế Thời Trang Nam (1 Năm Kinh Nghiệm) - Tại Hà Nội"
+            }
+        ]
     },
     "activity": [
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 11 skills from cv_1.pdf",
+            "time": "11:11 AM, May 01",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 11 skills from cv_1.pdf",
+            "time": "11:02 AM, May 01",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 11 skills from cv_3.pdf",
+            "time": "10:51 AM, May 01",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 11 skills from cv_3.pdf",
+            "time": "10:19 AM, May 01",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 12 skills from cv_4.pdf",
+            "time": "10:16 AM, May 01",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 11 skills from cv_3.pdf",
+            "time": "10:12 AM, May 01",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
         {
             "type": "scan",
             "title": "CV Analyzed",
@@ -85,58 +140,10 @@
             "time": "02:15 AM, May 01",
             "icon": "bi-file-earmark-pdf",
             "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 5 skills from cv_3.pdf",
-            "time": "02:12 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 4 skills from cv_4.pdf",
-            "time": "02:05 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 5 skills from cv_3.pdf",
-            "time": "02:04 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 7 skills from cv_1.pdf",
-            "time": "02:01 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 7 skills from cv_1.pdf",
-            "time": "01:58 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 5 skills from cv_3.pdf",
-            "time": "01:54 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
         }
     ],
     "stats": {
-        "scans": 41,
+        "scans": 47,
         "matches": 54
     }
 }
