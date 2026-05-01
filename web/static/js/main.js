@@ -208,14 +208,17 @@ function closeAuthModals() {
 }
 
 async function logout() {
+    // Immediately update UI so user sees feedback
+    setAuthState(false);
+    showToast('Logging out', 'See you next time!', 'info');
+
     try {
         await fetch('/api/logout', { method: 'POST' });
-        setAuthState(false);
-        showToast('Logged out', 'See you next time!', 'info');
-        setTimeout(() => { window.location.href = '/upload_page'; }, 1000);
     } catch (e) {
-        console.error("Logout failed", e);
+        console.error("Logout API call failed", e);
     }
+    // Always redirect regardless of API result
+    window.location.href = '/';
 }
 
 function setAuthState(isLoggedIn, user = null) {

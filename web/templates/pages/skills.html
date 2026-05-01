@@ -195,8 +195,23 @@
     /* Dark Mode Support */
     @media (prefers-color-scheme: dark) {
         .skill-card {
-            background-color: #1e1e1e;
-            border-color: var(--bs-gray-700);
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border-color: rgba(99, 102, 241, 0.2);
+            color: #e0e0e0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .skill-card:hover {
+            border-color: rgba(99, 102, 241, 0.4);
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+
+        .skill-name {
+            color: #ffffff;
+        }
+
+        .skill-confidence {
+            color: #60a5fa;
         }
 
         .skills-hero {
@@ -213,20 +228,39 @@
         }
 
         .badge-core {
-            background-color: #5a4a00;
-            color: #ffc107;
+            background-color: rgba(251, 191, 36, 0.15);
+            color: #fbbf24;
         }
 
         .badge-supporting {
-            background-color: #003366;
-            color: #70c0ff;
+            background-color: rgba(96, 165, 250, 0.15);
+            color: #60a5fa;
+        }
+
+        .progress {
+            background-color: rgba(255, 255, 255, 0.1);
         }
     }
 
     /* Dark Theme Support (data-theme attribute) */
     [data-theme="dark"] .skill-card {
-        background-color: #1e1e1e;
-        border-color: var(--bs-gray-700);
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border-color: rgba(99, 102, 241, 0.2);
+        color: #e0e0e0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    [data-theme="dark"] .skill-card:hover {
+        border-color: rgba(99, 102, 241, 0.4);
+        box-shadow: 0 4px 16px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    [data-theme="dark"] .skill-name {
+        color: #ffffff;
+    }
+
+    [data-theme="dark"] .skill-confidence {
+        color: #60a5fa;
     }
 
     [data-theme="dark"] .empty-state {
@@ -235,13 +269,17 @@
     }
 
     [data-theme="dark"] .badge-core {
-        background-color: #5a4a00;
-        color: #ffc107;
+        background-color: rgba(251, 191, 36, 0.15);
+        color: #fbbf24;
     }
 
     [data-theme="dark"] .badge-supporting {
-        background-color: #003366;
-        color: #70c0ff;
+        background-color: rgba(96, 165, 250, 0.15);
+        color: #60a5fa;
+    }
+
+    [data-theme="dark"] .progress {
+        background-color: rgba(255, 255, 255, 0.1);
     }
 
     /* Responsive */
