@@ -60,13 +60,9 @@ def get_db():
 from web.migrations import run_migrations
 
 def init_db():
-    # Only run migrations if the database file doesn't exist
-    if not os.path.exists(DB_PATH):
-        print(f"[INFO] Database not found at {DB_PATH}. Initializing for the first time...")
-        run_migrations(DB_PATH)
-    else:
-        # DB exists, we assume it's already migrated
-        pass
+    # Always run migrations to ensure schema is up-to-date
+    # Migrations should use 'IF NOT EXISTS'
+    run_migrations(DB_PATH)
 
 # Initialize DB on startup
 init_db() 
@@ -349,19 +345,75 @@ def _session_ttl_housekeeping():
 DASHBOARD_DATA_FILE = os.path.join(os.path.dirname(__file__), 'data', 'dashboard_data.json')
 
 def load_dashboard_data():
-    if not os.path.exists(DASHBOARD_DATA_FILE):
+    email = session.get('user_email')
+    if not email:
+        # Support guests via session storage
+        guest_data = session.get('guest_dashboard')
+        if guest_data:
+            return guest_data
         return {
             "kanban": {"saved": [], "applied": [], "interview": [], "offer": []},
             "activity": [],
             "stats": {"scans": 0, "matches": 0}
         }
-    with open(DASHBOARD_DATA_FILE, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute("""
+            SELECT d.* FROM user_dashboards d
+            JOIN users u ON d.user_id = u.id
+            WHERE u.email = ?
+        """, (email,))
+        row = c.fetchone()
+        if row:
+            return {
+                "kanban": json.loads(row['kanban_data'] or '{"saved": [], "applied": [], "interview": [], "offer": []}'),
+                "activity": json.loads(row['activity_data'] or "[]"),
+                "stats": json.loads(row['stats_data'] or '{"scans": 0, "matches": 0}')
+            }
+        else:
+            return {
+                "kanban": {"saved": [], "applied": [], "interview": [], "offer": []},
+                "activity": [],
+                "stats": {"scans": 0, "matches": 0}
+            }
+    finally:
+        conn.close()
 
 def save_dashboard_data(data):
-    os.makedirs(os.path.dirname(DASHBOARD_DATA_FILE), exist_ok=True)
-    with open(DASHBOARD_DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
+    email = session.get('user_email')
+    if not email:
+        # Persist guest data in session
+        session['guest_dashboard'] = data
+        session.modified = True
+        return
+    
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute("SELECT id FROM users WHERE email = ?", (email,))
+        user = c.fetchone()
+        if not user: return
+        user_id = user['id']
+        
+        c.execute("""
+            INSERT INTO user_dashboards (user_id, kanban_data, activity_data, stats_data, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET
+                kanban_data=excluded.kanban_data,
+                activity_data=excluded.activity_data,
+                stats_data=excluded.stats_data,
+                updated_at=CURRENT_TIMESTAMP
+        """, (
+            user_id, 
+            json.dumps(data['kanban'], ensure_ascii=False),
+            json.dumps(data['activity'], ensure_ascii=False),
+            json.dumps(data['stats'], ensure_ascii=False)
+        ))
+        conn.commit()
+    finally:
+        conn.close()
 
 def log_activity(atype, title, subtitle):
     data = load_dashboard_data()
@@ -463,11 +515,13 @@ def add_kanban_item():
     
     from datetime import datetime
     new_card = {
-        "id": "kb_" + datetime.now().strftime("%Y%m%d%H%M%S"),
+        "id": "kb_" + datetime.now().strftime("%Y%m%d%H%M%S%f"),
         "title": item.get('title'),
         "company": item.get('company'),
         "loc": item.get('loc', 'Unknown'),
-        "date": datetime.now().strftime("%b %d, %Y")
+        "date": datetime.now().strftime("%b %d, %Y"),
+        "job_id": item.get('job_id'),
+        "url": item.get('url')
     }
     
     if status in data['kanban']:
@@ -475,7 +529,22 @@ def add_kanban_item():
         log_activity('move', 'New Application', f"Added {new_card['title']} at {new_card['company']}")
         save_dashboard_data(data)
         return jsonify({'success': True, 'item': new_card})
-    return jsonify({'error': 'Invalid status'}), 400
+    else:
+        # Fallback if column name doesn't match
+        data['kanban']['saved'].append(new_card)
+        save_dashboard_data(data)
+        return jsonify({'success': True, 'item': new_card})
+
+@app.route('/api/kanban/delete/<col>/<item_id>', methods=['DELETE'])
+def delete_kanban_item(col, item_id):
+    data = load_dashboard_data()
+    if col in data['kanban']:
+        original_len = len(data['kanban'][col])
+        data['kanban'][col] = [i for i in data['kanban'][col] if i['id'] != item_id]
+        if len(data['kanban'][col]) < original_len:
+            save_dashboard_data(data)
+            return jsonify({'success': True})
+    return jsonify({'error': 'Item not found'}), 404
 
 @app.route('/upload', methods=['POST'])
 def upload_files():
@@ -653,14 +722,22 @@ def _get_job_detail_data(job_id):
         ex = {'components': {}}
         
         # 1. Try treating as index in scores
+        scores = user_state.get('scores') or []
         try:
             idx = int(job_id)
-            if idx < len(user_state.get('scores', [])):
-                j, sc, ex = user_state['scores'][idx]
+            if idx < len(scores):
+                j, sc, ex = scores[idx]
         except (ValueError, TypeError):
             pass
 
-        # 2. Try treating as actual job ID from app_state
+        # 2. Try searching by job node ID in the scores list
+        if j is None and scores:
+            for sj, ssc, sex in scores:
+                if str(sj) == str(job_id):
+                    j, sc, ex = sj, ssc, sex
+                    break
+
+        # 3. Try treating as actual job ID from app_state
         if j is None:
             if job_id in app_state.get('job_info', {}):
                 j = job_id
@@ -678,11 +755,35 @@ def _get_job_detail_data(job_id):
         job_prob = job_info.get("prob_skills", {})
 
         # Compute match score if not already provided (e.g. from search)
-        if sc == 0.0 and user_state.get('user_prob'):
-            # This is a simplified score if we don't have the full comparison context
-            # or we could re-run the scorer for this one job.
-            # For now, we'll just show what we have.
-            pass
+        if sc == 0.0 and user_state.get('user_prob') and app_state.get('is_ready'):
+            try:
+                from scoring.user_job_score import user_job_score
+                
+                cv_vec = user_state.get('cv_vec')
+                if cv_vec is None and user_state.get('cv_text'):
+                    # Reconstruct vector if session was restored from DB
+                    cv_vec = normalize(app_state['tfidf'].transform([norm_text(user_state['cv_text'])]))
+                
+                if cv_vec is not None:
+                    sc, ex = user_job_score(
+                        user_state.get('user_prob'),
+                        user_state.get('user_city'),
+                        user_state.get('user_detail'),
+                        j,
+                        app_state['job_info'],
+                        app_state['IDX'],
+                        app_state['X'],
+                        cv_vec,
+                        app_state['tfidf'],
+                        user_state.get('user_role_can', 'general'),
+                        user_state.get('user_exp_bucket', 'Exp_Unknown'),
+                        user_raw2can_best=user_state.get('user_raw2can_best'),
+                        user_raw2can_map=user_state.get('user_raw2can_map'),
+                        cv_domain="general"
+                    )
+            except Exception as e_score:
+                print(f"[ERROR] Recalculating score failed: {e_score}")
+                pass
 
         if user_state.get('user_raw2can_best'):
             user_prob_max_raw = {
@@ -739,7 +840,9 @@ def _generate_ai_insight(score, matched_skills):
     
     skill_part = ""
     if matched_skills:
-        skill_part = f" Your expertise in {matched_skills[0]} is a key asset here."
+        top_skill = matched_skills[0]
+        skill_name = top_skill.get('skill', top_skill) if isinstance(top_skill, dict) else top_skill
+        skill_part = f" Your expertise in {skill_name} is a key asset here."
         
     return f"{base}{skill_part} Highlight your adaptability and willingness to learn missing requirements."
 

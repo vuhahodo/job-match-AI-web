@@ -7,8 +7,8 @@
             <div class="card border-0 shadow-sm p-4 bg-primary text-white overflow-hidden position-relative">
                 <div class="position-relative z-1">
                     <h6 class="text-uppercase opacity-75 small fw-bold mb-1">Total Matches</h6>
-                    <h2 class="display-5 fw-bold mb-0">24</h2>
-                    <div class="small mt-2"><i class="bi bi-arrow-up me-1"></i> 12% from last week</div>
+                    <h2 class="display-5 fw-bold mb-0" id="total-matches-stat">0</h2>
+                    <div class="small mt-2"><i class="bi bi-arrow-up me-1"></i> 0% from last week</div>
                 </div>
                 <i class="bi bi-lightning-fill position-absolute bottom-0 end-0 display-1 opacity-10 mb-n3 me-n2"></i>
             </div>
@@ -16,7 +16,7 @@
         <div class="col-md-3">
             <div class="card border-0 shadow-sm p-4 bg-white">
                 <h6 class="text-uppercase text-muted small fw-bold mb-1">CVs Scanned</h6>
-                <h2 class="display-5 fw-bold mb-0 text-dark">8</h2>
+                <h2 class="display-5 fw-bold mb-0 text-dark" id="cv-scanned-stat">0</h2>
                 <div class="small text-success mt-2 fw-medium">All optimized</div>
             </div>
         </div>
@@ -30,8 +30,8 @@
         <div class="col-md-3">
             <div class="card border-0 shadow-sm p-4 bg-dark text-white">
                 <h6 class="text-uppercase text-white-50 small fw-bold mb-1">Interview Rate</h6>
-                <h2 class="display-5 fw-bold mb-0">14%</h2>
-                <div class="small text-info mt-2">Higher than avg</div>
+                <h2 class="display-5 fw-bold mb-0" id="interview-rate-stat">0%</h2>
+                <div class="small text-info mt-2">Active tracker</div>
             </div>
         </div>
     </div>
@@ -159,6 +159,11 @@
                             placeholder="e.g. Google">
                     </div>
                     <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold">Job URL (Optional)</label>
+                            <input type="url" class="form-control bg-light border-0" id="appUrl"
+                                placeholder="https://example.com/job">
+                        </div>
                         <div class="col-6">
                             <label class="form-label text-muted small fw-bold">Location</label>
                             <input type="text" class="form-control bg-light border-0" id="appLocation" required
@@ -182,3 +187,18 @@
         </div>
     </div>
 </div>
+
+<!-- View Application Modal (for manual entries) -->
+<div class="modal fade" id="viewAppModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold">Application Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4" id="viewAppContent">
+                <!-- Content injected by JS -->
+            </div>
+        </div>
+    </div>
+</div>

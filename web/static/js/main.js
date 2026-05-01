@@ -7,7 +7,13 @@ document.addEventListener('DOMContentLoaded', () => {
     setupUploadForm();
     setupSearch();
     checkSystemStatus(); // New initialization check
-    loadDashboardMockData();
+    
+    // Check if we are on dashboard page
+    if (document.getElementById('kanban-board')) {
+        loadDashboardData();
+    } else {
+        loadDashboardMockData();
+    }
 
     // Check local storage for auth state
     if (localStorage.getItem('isLoggedIn') === 'true') {
@@ -19,6 +25,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Init CV
     updateCV();
+
+    // Global Track Button Listener (Event Delegation)
+    document.addEventListener('click', async e => {
+        const trackBtn = e.target.closest('.track-btn');
+        if (trackBtn) {
+            e.preventDefault();
+            const { id, title, company, loc, url } = trackBtn.dataset;
+            trackJob(id, title, company, loc, url);
+        }
+    });
 });
 
 /* --- Theme Logic --- */
@@ -271,7 +287,8 @@ const DEFAULT_KANBAN = {
 let KANBAN_DATA = JSON.parse(localStorage.getItem('kanbanData')) || DEFAULT_KANBAN;
 
 async function saveKanbanData() {
-    // Sync with server
+    // Sync with server and local storage
+    localStorage.setItem('kanbanData', JSON.stringify(KANBAN_DATA));
     try {
         await fetch('/api/kanban/update', {
             method: 'POST',
@@ -280,17 +297,22 @@ async function saveKanbanData() {
         });
     } catch (e) {
         console.error('Failed to sync kanban to server:', e);
-        // Fallback to local storage
-        localStorage.setItem('kanbanData', JSON.stringify(KANBAN_DATA));
     }
 }
 
 async function loadDashboardData() {
     try {
         const response = await fetch('/api/dashboard');
+        if (!response.ok) throw new Error('Server unreachable');
         const data = await response.json();
         
-        KANBAN_DATA = data.kanban || DEFAULT_KANBAN;
+        // Always trust server data if we got a successful response
+        // This handles both logged-in users and guests (who now have session storage)
+        if (data.kanban) {
+            KANBAN_DATA = data.kanban;
+            localStorage.setItem('kanbanData', JSON.stringify(KANBAN_DATA));
+        }
+        
         const activities = data.activity || [];
         const stats = data.stats || {scans: 0, matches: 0};
 
@@ -301,8 +323,12 @@ async function loadDashboardData() {
         renderRecentActivity(activities);
     } catch (e) {
         console.error('Failed to load dashboard data:', e);
-        // Fallback to mock/local
-        loadDashboardMockData(); 
+        // Fallback to local storage only on failure
+        KANBAN_DATA = JSON.parse(localStorage.getItem('kanbanData')) || DEFAULT_KANBAN;
+        renderAllColumns();
+        setupDragAndDrop();
+        renderDashboardStats();
+        renderDashboardSkills();
     }
 }
 
@@ -312,17 +338,23 @@ function renderDashboardStats(realStats = null) {
     if (statEl) statEl.textContent = totalApps;
 
     // Update interview rate
-    const interviewRateCount = KANBAN_DATA.interview.length + KANBAN_DATA.offer.length;
-    const totalWithApplied = KANBAN_DATA.applied.length + interviewRateCount;
+    const interviewCount = KANBAN_DATA.interview.length;
+    const offerCount = KANBAN_DATA.offer.length;
+    const appliedCount = KANBAN_DATA.applied.length;
+    
+    const interviewRateCount = interviewCount + offerCount;
+    const totalWithApplied = appliedCount + interviewRateCount;
     const rate = totalWithApplied > 0 ? Math.round((interviewRateCount / totalWithApplied) * 100) : 0;
 
-    const rateEls = document.querySelectorAll('.display-5');
-    if (rateEls[3]) rateEls[3].textContent = rate + '%';
+    const rateEl = document.getElementById('interview-rate-stat');
+    if (rateEl) rateEl.textContent = rate + '%';
 
     // Update real stats if provided
     if (realStats) {
-        if (rateEls[0]) rateEls[0].textContent = realStats.matches || 0;
-        if (rateEls[1]) rateEls[1].textContent = realStats.scans || 0;
+        const matchesEl = document.getElementById('total-matches-stat');
+        const scansEl = document.getElementById('cv-scanned-stat');
+        if (matchesEl) matchesEl.textContent = realStats.matches || 0;
+        if (scansEl) scansEl.textContent = realStats.scans || 0;
     }
 }
 
@@ -419,92 +451,149 @@ function renderKanbanColumn(key, colId) {
     if (!col) return;
 
     col.innerHTML = KANBAN_DATA[key].map(item => `
-        <div class="card border-0 shadow-sm mb-3 kanban-card draggable" draggable="true" data-id="${item.id}" data-origin="${key}">
+        <div class="card border-0 shadow-sm mb-3 kanban-card draggable" 
+             draggable="true" 
+             data-id="${item.id}" 
+             data-origin="${key}"
+             ondblclick="${item.job_id ? `window.location.href='/job-detail/${item.job_id}'` : `viewAppDetails('${key}', '${item.id}')`}"
+             title="Double click to view details">
             <div class="card-body p-3">
-                <h6 class="fw-bold mb-1 text-truncate">${item.title}</h6>
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <h6 class="fw-bold mb-0 text-truncate" style="max-width: 80%;">
+                        ${item.job_id ? `<a href="/job-detail/${item.job_id}" class="text-decoration-none text-dark hover-primary">${item.title}</a>` : `<a href="javascript:void(0)" onclick="viewAppDetails('${key}', '${item.id}')" class="text-decoration-none text-dark hover-primary">${item.title}</a>`}
+                    </h6>
+                    <button class="btn btn-sm btn-link text-danger p-0 border-0" onclick="deleteKanbanItem('${key}', '${item.id}')" title="Remove">
+                        <i class="bi bi-trash small"></i>
+                    </button>
+                </div>
                 <div class="text-muted small mb-2">${item.company}</div>
                 <div class="d-flex justify-content-between align-items-center">
-                    <span class="badge bg-light text-dark border"><i class="bi bi-geo-alt me-1"></i>${item.loc}</span>
+                    <div class="d-flex gap-2 align-items-center">
+                        <span class="badge bg-light text-dark border"><i class="bi bi-geo-alt me-1"></i>${item.loc}</span>
+                        ${item.url ? `<a href="${item.url}" target="_blank" class="text-primary" title="Open Job Link"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}
+                    </div>
                     <small class="text-muted" style="font-size:0.7rem">${item.date}</small>
                 </div>
             </div>
         </div>
     `).join('');
 
-    // Update badge count if exists
     const badge = col.parentElement.querySelector('.badge');
     if (badge) badge.textContent = KANBAN_DATA[key].length;
+}
+
+async function deleteKanbanItem(col, id) {
+    if (!confirm('Are you sure you want to remove this from your tracker?')) return;
+    
+    try {
+        const response = await fetch(`/api/kanban/delete/${col}/${id}`, { method: 'DELETE' });
+        
+        // Nếu server xóa thành công HOẶC server không tìm thấy (do là dữ liệu mẫu cũ), 
+        // chúng ta vẫn xóa ở giao diện để người dùng không bị kẹt.
+        if (response.ok || response.status === 404) {
+            const index = KANBAN_DATA[col].findIndex(i => i.id === id);
+            if (index > -1) {
+                KANBAN_DATA[col].splice(index, 1);
+                localStorage.setItem('kanbanData', JSON.stringify(KANBAN_DATA));
+                renderAllColumns();
+                renderDashboardStats();
+                showToast('Removed', 'Application removed from tracker', 'info');
+            }
+        } else {
+            throw new Error('Server error');
+        }
+    } catch (e) {
+        console.error('Delete failed:', e);
+        showToast('Error', 'Failed to delete item from server', 'danger');
+    }
 }
 
 /* --- Drag & Drop Logic --- */
 let draggedItem = null;
 
 function setupDragAndDrop() {
-    const minHeight = "200px"; // Ensure empty cols are droppable
-    const columns = document.querySelectorAll('.kanban-column');
+    const board = document.getElementById('kanban-board');
+    if (!board || board.dataset.dragInitialized === "true") return;
 
-    columns.forEach(col => {
-        col.style.minHeight = minHeight;
+    // Use event delegation on the board container
+    board.addEventListener('dragstart', e => {
+        const draggable = e.target.closest('.draggable');
+        if (draggable) {
+            draggedItem = draggable;
+            draggable.classList.add('opacity-50');
+            // Store origin column for easier lookup
+            e.dataTransfer.setData('text/plain', draggable.dataset.id);
+        }
+    });
 
-        col.addEventListener('dragover', e => {
+    board.addEventListener('dragend', e => {
+        const draggable = e.target.closest('.draggable');
+        if (draggable) {
+            draggedItem = null;
+            draggable.classList.remove('opacity-50');
+            // Clean up hover states
+            document.querySelectorAll('.kanban-column').forEach(c => c.style.backgroundColor = '');
+        }
+    });
+
+    board.addEventListener('dragover', e => {
+        const col = e.target.closest('.kanban-column');
+        if (col) {
             e.preventDefault();
+            // Subtly highlight the column
             col.style.backgroundColor = 'rgba(0,0,0,0.02)';
-        });
+        }
+    });
 
-        col.addEventListener('dragleave', e => {
+    board.addEventListener('dragleave', e => {
+        const col = e.target.closest('.kanban-column');
+        if (col) {
             col.style.backgroundColor = '';
-        });
+        }
+    });
 
-        col.addEventListener('drop', e => {
+    board.addEventListener('drop', e => {
+        const col = e.target.closest('.kanban-column');
+        if (col && draggedItem) {
             e.preventDefault();
             col.style.backgroundColor = '';
-
-            if (!draggedItem) return;
 
             const originColKey = draggedItem.dataset.origin;
-            const targetColId = col.id; // e.g., 'col-applied'
+            const targetColId = col.id;
             const targetColKey = targetColId.replace('col-', '');
-            const itemId = draggedItem.dataset.id; // Keep as string or handle both
+            const itemId = draggedItem.dataset.id;
 
             if (originColKey === targetColKey) return;
 
-            // Move data
+            // Move data in memory
             const itemIndex = KANBAN_DATA[originColKey].findIndex(i => String(i.id) === String(itemId));
             if (itemIndex > -1) {
                 const [item] = KANBAN_DATA[originColKey].splice(itemIndex, 1);
-                item.date = "Just now"; // Update time
-                KANBAN_DATA[targetColKey].unshift(item); // Add to new col
+                item.date = "Just now";
+                KANBAN_DATA[targetColKey].unshift(item);
 
-                // Save to localStorage
-                saveKanbanData();
-
-                // Re-render
+                // Re-render and save
                 renderAllColumns();
-                setupDragAndDrop(); // Re-attach drag events for new elements
+                saveKanbanData();
                 renderDashboardStats();
-                renderDashboardSkills();
-                renderRecentActivity();
+                
+                // Refresh activity list if it moved to a significant status
+                if (targetColKey === 'applied' || targetColKey === 'interview' || targetColKey === 'offer') {
+                    // We could fetch again or just optimistic update, but fetch is safer to get server-side logged activity if we had it
+                    // For now, let's just refresh the dashboard data to get the latest activities
+                    setTimeout(loadDashboardData, 500); 
+                }
+
                 showToast('Moved', `Moved to ${targetColKey.toUpperCase()}`, 'success');
             }
-        });
+        }
     });
 
-    // We delegate dragstart since we re-render often, but for now re-attaching is simpler
-    // Or we use a static parent listener. Let's stick to delegating or simple re-attach.
-    // Actually, since we re-render, we need to bind events to the new elements.
-    // Let's modify renderKanbanColumn to attaching dragstart there? 
-    // Easier: use document-level delegation or just re-query in setupDragAndDrop which is called after render.
-
-    document.querySelectorAll('.draggable').forEach(draggable => {
-        draggable.addEventListener('dragstart', () => {
-            draggedItem = draggable;
-            draggable.classList.add('opacity-50');
-        });
-
-        draggable.addEventListener('dragend', () => {
-            draggedItem = null;
-            draggable.classList.remove('opacity-50');
-        });
+    board.dataset.dragInitialized = "true";
+    
+    // Set min-height for columns to ensure they are drop targets even when empty
+    document.querySelectorAll('.kanban-column').forEach(col => {
+        col.style.minHeight = "300px";
     });
 }
 async function handleAddApp(e) {
@@ -512,6 +601,7 @@ async function handleAddApp(e) {
     const title = document.getElementById('appTitle').value;
     const company = document.getElementById('appCompany').value;
     const loc = document.getElementById('appLocation').value;
+    const url = document.getElementById('appUrl').value;
     const status = document.getElementById('appStatus').value;
 
     const btn = e.target.querySelector('button[type="submit"]');
@@ -522,7 +612,7 @@ async function handleAddApp(e) {
         const response = await fetch('/api/kanban/add', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ title, company, loc, status })
+            body: JSON.stringify({ title, company, loc, status, url })
         });
         const result = await response.json();
         
@@ -532,16 +622,74 @@ async function handleAddApp(e) {
             
             // Close modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('addAppModal'));
-            modal.hide();
+            if (modal) modal.hide();
             e.target.reset();
+            showToast('Added', 'Application added to tracker', 'success');
         }
     } catch (error) {
         console.error('Error adding app:', error);
-        alert('Failed to add application. Please try again.');
+        showToast('Error', 'Failed to add application', 'danger');
     } finally {
         btn.disabled = false;
         btn.innerHTML = 'Add to Tracker';
     }
+}
+
+async function trackJob(jobId, title, company, loc, url) {
+    try {
+        const response = await fetch('/api/kanban/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ job_id: jobId, title, company, loc, url, status: 'saved' })
+        });
+        const result = await response.json();
+        if (result.success) {
+            showToast('Saved', 'Job added to your tracker', 'success');
+            // If we are on dashboard, reload
+            if (document.getElementById('kanban-board')) {
+                loadDashboardData();
+            }
+        } else {
+            showToast('Error', result.error || 'Failed to save job', 'danger');
+        }
+    } catch (e) {
+        showToast('Error', 'Connection failed', 'danger');
+    }
+}
+
+function viewAppDetails(col, id) {
+    const item = KANBAN_DATA[col].find(i => String(i.id) === String(id));
+    if (!item) return;
+
+    const content = document.getElementById('viewAppContent');
+    if (!content) return;
+
+    content.innerHTML = `
+        <div class="mb-3">
+            <label class="small text-muted fw-bold text-uppercase">Job Title</label>
+            <div class="fw-bold fs-5">${item.title}</div>
+        </div>
+        <div class="mb-3">
+            <label class="small text-muted fw-bold text-uppercase">Company</label>
+            <div>${item.company}</div>
+        </div>
+        <div class="mb-3">
+            <label class="small text-muted fw-bold text-uppercase">Location</label>
+            <div><i class="bi bi-geo-alt me-1"></i>${item.loc}</div>
+        </div>
+        ${item.url ? `
+        <div class="mb-3">
+            <label class="small text-muted fw-bold text-uppercase">Job URL</label>
+            <div><a href="${item.url}" target="_blank" class="text-truncate d-block">${item.url}</a></div>
+        </div>` : ''}
+        <div class="mt-4 pt-3 border-top d-flex justify-content-between align-items-center">
+            <span class="small text-muted">Added on ${item.date}</span>
+            <span class="badge bg-primary-soft text-primary text-uppercase">${col}</span>
+        </div>
+    `;
+
+    const modal = new bootstrap.Modal(document.getElementById('viewAppModal'));
+    modal.show();
 }
 
 /* --- Search Setup --- */
@@ -803,9 +951,23 @@ async function loadResults() {
                                 </div>
                             </div>
                         </div>
-                        <div>
-                            <a href="/job-detail/${job.id}" class="btn btn-outline-primary btn-sm me-2">View Analysis</a>
-                            <a href="${job.url}" target="_blank" class="btn btn-primary btn-sm">Apply</a>
+                        <div class="ms-3" style="min-width: 140px;">
+                            <div class="d-flex flex-column gap-2">
+                                <a href="/job-detail/${job.id}" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="bi bi-info-circle me-1"></i>View Analysis
+                                </a>
+                                <button class="btn btn-light btn-sm w-100 track-btn" 
+                                    data-id="${job.id}" 
+                                    data-title="${escapeHtml(job.title)}" 
+                                    data-company="${escapeHtml(job.company)}" 
+                                    data-loc="${escapeHtml(job.city)}" 
+                                    data-url="${job.url || ''}">
+                                    <i class="bi bi-bookmark-plus me-1"></i>Track
+                                </button>
+                                <a href="${job.url}" target="_blank" class="btn btn-primary btn-sm w-100">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i>Apply
+                                </a>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -2007,11 +2169,19 @@ function renderJobsBatch(jobs) {
                         <p class="text-muted small mb-3">${job.company}</p>
                         <div class="d-flex justify-content-between align-items-center mt-auto">
                             <div class="text-primary fw-bold">${job.salary}</div>
-                            <div class="d-flex gap-2">
-                                <a href="/job-detail/${job.id}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                            <div class="d-flex flex-column gap-2" style="min-width: 120px;">
+                                <a href="/job-detail/${job.id}" class="btn btn-sm btn-outline-primary rounded-pill px-3 w-100">
                                     <i class="bi bi-info-circle me-1"></i>Details
                                 </a>
-                                <a href="${job.url}" target="_blank" class="btn btn-sm btn-primary rounded-pill px-3">
+                                <button class="btn btn-sm btn-light rounded-pill px-3 w-100 track-btn" 
+                                    data-id="${job.id}" 
+                                    data-title="${escapeHtml(job.title)}" 
+                                    data-company="${escapeHtml(job.company)}" 
+                                    data-loc="${escapeHtml(job.location)}" 
+                                    data-url="${job.url || ''}">
+                                    <i class="bi bi-bookmark-plus me-1"></i>Track
+                                </button>
+                                <a href="${job.url}" target="_blank" class="btn btn-sm btn-primary rounded-pill px-3 w-100">
                                     <i class="bi bi-box-arrow-up-right me-1"></i>Apply
                                 </a>
                             </div>

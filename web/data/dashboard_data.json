@@ -1,19 +1,104 @@
 {
     "kanban": {
+        "applied": [],
+        "interview": [],
+        "offer": [],
         "saved": [
             {
-                "id": "kb_20260418025048",
+                "id": "kb_20260501124407",
                 "title": "AI",
                 "company": "tp",
                 "loc": "hcm",
-                "date": "Apr 18, 2026"
+                "date": "May 01, 2026",
+                "job_id": null,
+                "url": "https://www.messenger.com/e2ee/t/1421613532923471"
+            },
+            {
+                "id": "kb_20260501124425",
+                "title": "AI",
+                "company": "tp",
+                "loc": "hcm",
+                "date": "May 01, 2026",
+                "job_id": null,
+                "url": ""
+            },
+            {
+                "id": "kb_20260501124532",
+                "title": "Giảng Viên Thiết Kế Đồ Họa",
+                "company": "Trường Đại học CMC",
+                "loc": "Ha Noi",
+                "date": "May 01, 2026",
+                "job_id": "job::job_1334472_96793e89",
+                "url": "https://www.topcv.vn/viec-lam/giang-vien-thiet-ke-do-hoa/1334472.html"
+            },
+            {
+                "id": "kb_20260501124633",
+                "title": "Giảng Viên Thiết Kế Đồ Họa",
+                "company": "Trường Đại học CMC",
+                "loc": "Ha Noi",
+                "date": "May 01, 2026",
+                "job_id": "job::job_1334472_96793e89",
+                "url": "https://www.topcv.vn/viec-lam/giang-vien-thiet-ke-do-hoa/1334472.html"
             }
-        ],
-        "applied": [],
-        "interview": [],
-        "offer": []
+        ]
     },
     "activity": [
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 11 skills from cv_3.pdf",
+            "time": "12:45 PM, May 01",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 11 skills from cv_1.pdf",
+            "time": "11:11 AM, May 01",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 11 skills from cv_1.pdf",
+            "time": "11:02 AM, May 01",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 11 skills from cv_3.pdf",
+            "time": "10:51 AM, May 01",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 11 skills from cv_3.pdf",
+            "time": "10:19 AM, May 01",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 12 skills from cv_4.pdf",
+            "time": "10:16 AM, May 01",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 11 skills from cv_3.pdf",
+            "time": "10:12 AM, May 01",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
         {
             "type": "scan",
             "title": "CV Analyzed",
@@ -77,66 +162,10 @@
             "time": "02:17 AM, May 01",
             "icon": "bi-file-earmark-pdf",
             "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 5 skills from cv_3.pdf",
-            "time": "02:15 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 5 skills from cv_3.pdf",
-            "time": "02:12 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 4 skills from cv_4.pdf",
-            "time": "02:05 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 5 skills from cv_3.pdf",
-            "time": "02:04 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 7 skills from cv_1.pdf",
-            "time": "02:01 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 7 skills from cv_1.pdf",
-            "time": "01:58 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 5 skills from cv_3.pdf",
-            "time": "01:54 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
         }
     ],
     "stats": {
-        "scans": 41,
+        "scans": 48,
         "matches": 54
     }
 }
