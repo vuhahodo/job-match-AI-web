@@ -17,6 +17,86 @@
         {
             "type": "scan",
             "title": "CV Analyzed",
+            "subtitle": "Extracted 21 skills from nguyen-thi-ngoc cv.pdf",
+            "time": "09:42 PM, Apr 30",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 21 skills from nguyen-thi-ngoc cv.pdf",
+            "time": "09:36 PM, Apr 30",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 21 skills from nguyen-thi-ngoc cv.pdf",
+            "time": "04:20 PM, Apr 30",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 21 skills from nguyen-thi-ngoc cv.pdf",
+            "time": "04:16 PM, Apr 30",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 21 skills from nguyen-thi-ngocCV.pdf",
+            "time": "04:04 PM, Apr 30",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "11:04 PM, Apr 27",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "11:04 PM, Apr 27",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 21 skills from nguyen-thi-ngoc cv.pdf",
+            "time": "11:03 PM, Apr 27",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 14 skills from cv mau.pdf",
+            "time": "09:27 PM, Apr 20",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 17 skills from NGUYEN-DINH-QUAN-CV.pdf",
+            "time": "09:26 PM, Apr 20",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
             "subtitle": "Extracted 10 skills from Chuyên nghiệp Y tá được cấp phép hành nghề Sơ yếu lý lịch.pdf",
             "time": "09:14 PM, Apr 20",
             "icon": "bi-file-earmark-pdf",
@@ -53,90 +133,10 @@
             "time": "08:13 PM, Apr 20",
             "icon": "bi-file-earmark-pdf",
             "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 5 skills from nguyen-thi-ngoc.pdf",
-            "time": "08:05 PM, Apr 20",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 5 skills from nguyen-thi-ngoc cv.pdf",
-            "time": "07:56 PM, Apr 20",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 5 skills from nguyen-thi-ngoc cv.pdf",
-            "time": "07:34 PM, Apr 20",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 0 skills from cv_1.pdf",
-            "time": "07:34 PM, Apr 20",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 0 skills from cv_1.pdf",
-            "time": "07:33 PM, Apr 20",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 0 skills from cv_1.pdf",
-            "time": "07:30 PM, Apr 20",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 0 skills from cv_1.pdf",
-            "time": "07:25 PM, Apr 20",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 0 skills from cv_2.pdf",
-            "time": "07:20 PM, Apr 20",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 0 skills from cv_1.pdf",
-            "time": "07:20 PM, Apr 20",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "match",
-            "title": "Global Search",
-            "subtitle": "Found 500 jobs matching ''",
-            "time": "03:41 PM, Apr 18",
-            "icon": "bi-lightning-charge",
-            "color": "danger"
         }
     ],
     "stats": {
-        "scans": 21,
-        "matches": 10
+        "scans": 29,
+        "matches": 12
     }
 }

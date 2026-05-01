@@ -155,12 +155,16 @@ async function initializeGraph(force = false) {
         const visEdges = data.links.map(edge => {
             const rel = edge.rel.replace(/_/g, ' ');
 
-            // Label: show score for MATCH / SIMILAR, show rel name for others
+            // Label: show score for all important relationships
             let label = '';
             if (edge.rel === 'MATCHES_JOB' && edge.score != null) {
                 label = `MATCH (${edge.score.toFixed(3)})`;
             } else if (edge.rel === 'SIMILAR_TO' && edge.score != null) {
                 label = `SIMILAR (${edge.score.toFixed(3)})`;
+            } else if (edge.rel === 'HAS_SKILL' && edge.prob != null) {
+                label = `${rel} (${edge.prob.toFixed(3)})`;
+            } else if (edge.rel === 'REQUIRES_SKILL' && edge.prob != null) {
+                label = `${rel} (${edge.prob.toFixed(3)})`;
             } else {
                 label = rel;
             }
@@ -181,6 +185,11 @@ async function initializeGraph(force = false) {
                 width = 3;
                 fontSize = 11;
                 dashes = false;           // solid medium
+            } else if (edge.rel === 'REQUIRES_SKILL' || edge.rel === 'HAS_SKILL') {
+                color = '#f57f17';
+                width = 2;
+                fontSize = 10;
+                dashes = [3, 3];
             } else {
                 // All other relationships: thin dashed grey
                 color = '#999';
