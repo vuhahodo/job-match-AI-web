@@ -2,20 +2,22 @@
 """Flask web application for NCKH job matching system"""
 
 from flask import Flask, render_template, request, jsonify, send_file, session
-from werkzeug.security import generate_password_hash, check_password_hash
-import uuid
 import os
 import re
 import json
+from time import perf_counter
 from werkzeug.utils import secure_filename
 import pandas as pd
 import numpy as np
+import uuid
+from werkzeug.security import generate_password_hash, check_password_hash
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import normalize
 
 from config import (
     TOPK_USER_JOB, CORE_SKILLS_CANON, SIM_THRESHOLD, 
-    CANDIDATES_TOP, TOPK_SIMILAR, MIN_KEEP_PROB
+    CANDIDATES_TOP, TOPK_SIMILAR, MIN_KEEP_PROB,
+    SKILL_LEXICON, SECTION_WEIGHT, DOMAIN_SKILL_LEXICON, DOMAIN_KEYWORDS
 )
 from utils.data_loader import load_excel_file, load_pdf_file, extract_all_text_from_pdf
 from utils.text_processing import (
@@ -32,9 +34,12 @@ from scoring.xai import explain_user_job
 from kg.similarity import build_job_job_similar_edges
 import networkx as nx
 from networkx.readwrite import json_graph
+import time
+import secrets
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'job-match-ai-dev-secret')
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -52,50 +57,22 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+from web.migrations import run_migrations
+
 def init_db():
-    conn = get_db()
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )''')
-    conn.commit()
-    conn.close()
+    # Only run migrations if the database file doesn't exist
+    if not os.path.exists(DB_PATH):
+        print(f"[INFO] Database not found at {DB_PATH}. Initializing for the first time...")
+        run_migrations(DB_PATH)
+    else:
+        # DB exists, we assume it's already migrated
+        pass
 
 # Initialize DB on startup
-init_db()
+init_db() 
 
-user_sessions_store = {}
-SESSION_LIFETIME = 3600 * 24 # 24 hours
-
-def cleanup_stale_sessions():
-    now = time.time()
-    stale_sids = [sid for sid, data in user_sessions_store.items() if now - data.get('last_active', 0) > SESSION_LIFETIME]
-    for sid in stale_sids:
-        del user_sessions_store[sid]
-    # Keep max 100 sessions to avoid memory ballooning
-    if len(user_sessions_store) > 100:
-        oldest = min(user_sessions_store.keys(), key=lambda k: user_sessions_store[k].get('last_active', 0))
-        del user_sessions_store[oldest]
-
-def get_user_state():
-    cleanup_stale_sessions()
-    if 'session_id' not in session:
-        session['session_id'] = str(uuid.uuid4())
-    sid = session['session_id']
-    if sid not in user_sessions_store:
-        user_sessions_store[sid] = {
-            'cv_text': None, 'USER_ID': None, 'scores': None, 'user_prob': None,
-            'user_city': None, 'user_detail': None, 'user_role_can': None,
-            'user_exp_bucket': None, 'user_raw2can_best': None, 'user_raw2can_map': None,
-            'current_G': None, 'cv_vec': None, 'cv_filename': None,
-            'last_active': time.time()
-        }
-    user_sessions_store[sid]['last_active'] = time.time()
-    return user_sessions_store[sid]
+# Session-scoped state (user-specific)
+# Defined below in the app_state section to keep related data together
 
 @app.route('/api/register', methods=['POST'])
 def register():
@@ -143,7 +120,62 @@ def login():
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
+    _session_store.pop(session.get('session_id'), None)
     session.pop('user_email', None)
+    return jsonify({'success': True})
+
+
+@app.route('/api/forgot-password', methods=['POST'])
+def forgot_password():
+    data = request.json or {}
+    email = data.get('email', '').strip().lower()
+    if not email:
+        return jsonify({'error': 'Email is required.'}), 400
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT id FROM users WHERE email = ?", (email,))
+    user = c.fetchone()
+    if not user:
+        conn.close()
+        return jsonify({'error': 'Email not found.'}), 404
+
+    reset_token = secrets.token_urlsafe(24)
+    c.execute(
+        "INSERT INTO password_resets (email, reset_token, used) VALUES (?, ?, 0)",
+        (email, reset_token)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'reset_token': reset_token})
+
+
+@app.route('/api/reset-password', methods=['POST'])
+def reset_password():
+    data = request.json or {}
+    token = data.get('token', '').strip()
+    new_password = data.get('new_password', '')
+    if not token or len(new_password) < 6:
+        return jsonify({'error': 'Token and password (>= 6 chars) are required.'}), 400
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        "SELECT id, email FROM password_resets WHERE reset_token = ? AND used = 0 ORDER BY id DESC LIMIT 1",
+        (token,)
+    )
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Invalid or used reset token.'}), 400
+
+    c.execute(
+        "UPDATE users SET password_hash = ? WHERE email = ?",
+        (generate_password_hash(new_password), row['email'])
+    )
+    c.execute("UPDATE password_resets SET used = 1 WHERE id = ?", (row['id'],))
+    conn.commit()
+    conn.close()
     return jsonify({'success': True})
 
 @app.route('/api/auth-status')
@@ -163,13 +195,27 @@ def auth_status():
     return jsonify({'logged_in': True, 'user': {'email': email, 'name': user['name']}})
 
 
-# Global variables to store state
-state = {
+# Global immutable state (shared across sessions)
+app_state = {
     'df': None,
-    'cv_text': None,
-    'USER_ID': None,
     'job_nodes': None,
     'job_info': None,
+    'G': None,          # Base job graph
+    'tfidf': None,
+    'X': None,
+    'IDX': None,
+    'valid_job_nodes': None,
+    'is_ready': False,  # Tracking initialization
+}
+
+# Session-scoped state (user-specific)
+SESSION_TTL_SECONDS = int(os.environ.get('SESSION_TTL_SECONDS', '3600'))
+_session_store = {}
+_last_cleanup_at = 0.0
+SESSION_USER_DEFAULTS = {
+    'cv_text': None,
+    'cv_filename': None,
+    'USER_ID': None,
     'scores': None,
     'user_prob': None,
     'user_city': None,
@@ -178,35 +224,139 @@ state = {
     'user_exp_bucket': None,
     'user_raw2can_best': None,
     'user_raw2can_map': None,
-    'G': None,          # Base job graph
     'current_G': None,  # Working graph (User + Jobs)
-    'tfidf': None,
-    'X': None,
-    'IDX': None,
     'cv_vec': None,
-    'valid_job_nodes': None,
-    'is_ready': False,  # Tracking initialization
 }
+
+PERSISTED_SESSION_FIELDS = (
+    'cv_filename',
+    'cv_text',
+    'user_prob',
+    'scores',
+)
+
+
+def _to_json_safe(value):
+    if value is None:
+        return None
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(k): _to_json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_json_safe(v) for v in value]
+    if hasattr(value, 'item'):
+        try:
+            return value.item()
+        except Exception:
+            pass
+    return str(value)
+
+
+def _load_persisted_user_state(session_id):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        "SELECT session_id, cv_filename, cv_text, user_prob, scores, updated_at FROM user_sessions WHERE session_id = ?",
+        (session_id,)
+    )
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        return None
+
+    data = dict(SESSION_USER_DEFAULTS)
+    data['cv_filename'] = row['cv_filename']
+    data['cv_text'] = row['cv_text']
+    data['user_prob'] = json.loads(row['user_prob']) if row['user_prob'] else None
+    data['scores'] = json.loads(row['scores']) if row['scores'] else None
+    return data
+
+
+def persist_user_state(user_state):
+    session_id = _get_session_id()
+    payload = {k: _to_json_safe(user_state.get(k)) for k in PERSISTED_SESSION_FIELDS}
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        """
+        INSERT INTO user_sessions (session_id, cv_filename, cv_text, user_prob, scores, updated_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(session_id) DO UPDATE SET
+            cv_filename=excluded.cv_filename,
+            cv_text=excluded.cv_text,
+            user_prob=excluded.user_prob,
+            scores=excluded.scores,
+            updated_at=CURRENT_TIMESTAMP
+        """,
+        (
+            session_id,
+            payload['cv_filename'],
+            payload['cv_text'],
+            json.dumps(payload['user_prob'], ensure_ascii=False) if payload['user_prob'] is not None else None,
+            json.dumps(payload['scores'], ensure_ascii=False) if payload['scores'] is not None else None,
+        )
+    )
+    conn.commit()
+    conn.close()
+
+
+def _cleanup_expired_sessions(force=False):
+    global _last_cleanup_at
+    now = time.time()
+    if not force and now - _last_cleanup_at < 60:
+        return
+    _last_cleanup_at = now
+    expired = [sid for sid, payload in _session_store.items() if payload.get('expires_at', 0) <= now]
+    for sid in expired:
+        _session_store.pop(sid, None)
+
+
+def _get_session_id():
+    session_id = session.get('session_id')
+    if not session_id:
+        session_id = secrets.token_urlsafe(24)
+        session['session_id'] = session_id
+    return session_id
+
+
+def get_user_state(create=True):
+    _cleanup_expired_sessions()
+    session_id = _get_session_id()
+    payload = _session_store.get(session_id)
+    now = time.time()
+
+    if payload is None:
+        if not create:
+            return None
+        restored_state = _load_persisted_user_state(session_id)
+        payload = {
+            'data': restored_state if restored_state is not None else dict(SESSION_USER_DEFAULTS),
+            'expires_at': now + SESSION_TTL_SECONDS,
+        }
+        _session_store[session_id] = payload
+    else:
+        payload['expires_at'] = now + SESSION_TTL_SECONDS
+
+    return payload['data']
+
+
+@app.before_request
+def _session_ttl_housekeeping():
+    _cleanup_expired_sessions()
 
 DASHBOARD_DATA_FILE = os.path.join(os.path.dirname(__file__), 'data', 'dashboard_data.json')
 
 def load_dashboard_data():
-    try:
-        if not os.path.exists(DASHBOARD_DATA_FILE):
-            return {
-                "kanban": {"saved": [], "applied": [], "interview": [], "offer": []},
-                "activity": [],
-                "stats": {"scans": 0, "matches": 0}
-            }
-        with open(DASHBOARD_DATA_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"[ERROR] Failed to load dashboard data: {e}")
+    if not os.path.exists(DASHBOARD_DATA_FILE):
         return {
             "kanban": {"saved": [], "applied": [], "interview": [], "offer": []},
             "activity": [],
             "stats": {"scans": 0, "matches": 0}
         }
+    with open(DASHBOARD_DATA_FILE, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
 def save_dashboard_data(data):
     os.makedirs(os.path.dirname(DASHBOARD_DATA_FILE), exist_ok=True)
@@ -251,7 +401,6 @@ def index():
 @app.route('/upload_page')
 def upload_page():
     user_state = get_user_state()
-    user_state = get_user_state()
     return render_template('pages/upload.html', cv_filename=user_state.get('cv_filename'))
 
 @app.route('/dashboard')
@@ -274,7 +423,7 @@ def results_page():
 def graph_page():
     return render_template('pages/graph.html')
 
-@app.route('/skills-page')
+@app.route('/skills_page')
 def skills_page():
     return render_template('pages/skills.html')
 
@@ -328,15 +477,13 @@ def add_kanban_item():
         return jsonify({'success': True, 'item': new_card})
     return jsonify({'error': 'Invalid status'}), 400
 
-
-
 @app.route('/upload', methods=['POST'])
 def upload_files():
     user_state = get_user_state()
-    user_state = get_user_state()
     """Handle file uploads"""
+    user_prob = {}
     try:
-        if not state.get('is_ready'):
+        if not app_state.get('is_ready'):
             return jsonify({'error': 'System is still initializing. Please wait a few moments...'}), 503
             
         pdf_file = request.files.get('pdf_file')
@@ -344,6 +491,8 @@ def upload_files():
         # Check if PDF file is provided
         if not pdf_file:
             return jsonify({'error': 'PDF file required'}), 400
+        if not pdf_file.filename.lower().endswith('.pdf'):
+            return jsonify({'error': 'Only PDF files are allowed.'}), 400
 
         # Always use default Excel file
         excel_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'db_job_tuan.xlsx')
@@ -360,16 +509,16 @@ def upload_files():
             user_state['cv_text'] = cv_text
             user_state['cv_filename'] = pdf_file.filename
 
-            # 2. Get pre-computed data from state
-            job_info = state['job_info']
-            job_nodes = state['job_nodes']
-            valid_job_nodes = state['valid_job_nodes']
-            tfidf = state['tfidf']
-            X = state['X']
-            IDX = state['IDX']
+            # 2. Get pre-computed immutable app data
+            job_info = app_state['job_info']
+            job_nodes = app_state['job_nodes']
+            valid_job_nodes = app_state['valid_job_nodes']
+            tfidf = app_state['tfidf']
+            X = app_state['X']
+            IDX = app_state['IDX']
             
             # 3. Create a clean working graph
-            G = state['G'].copy()
+            G = app_state['G'].copy()
             user_state['current_G'] = G
 
             # 4. Build user node and extract skills
@@ -394,9 +543,11 @@ def upload_files():
             scores = compute_user_job_scores(
                 job_nodes, job_info, user_prob, user_city, user_detail,
                 IDX, X, cv_vec, tfidf, user_state['user_role_can'], 
-                user_state['user_exp_bucket'], user_raw2can_best, user_raw2can_map
+                user_state['user_exp_bucket'], user_raw2can_best, user_raw2can_map,
+                cv_text
             )
             user_state['scores'] = scores
+            persist_user_state(user_state)
 
             # 7. Add MATCHES_JOB edges
             for job_node, score, explain in scores:
@@ -428,23 +579,22 @@ def upload_files():
 @app.route('/results')
 def results():
     user_state = get_user_state()
-    user_state = get_user_state()
     """Display matching results"""
     if user_state.get('scores') is None:
         return jsonify([])
 
     results_data = []
-    for rank, (j, sc, ex) in enumerate(user_state['scores'][:3], start=1):
-        job_title = short_label(state['job_info'][j]['title'], 90)
+    for rank, (j, sc, ex) in enumerate(user_state['scores'][:TOPK_USER_JOB], start=1):
+        job_title = short_label(app_state['job_info'][j]['title'], 90)
         results_data.append({
             'rank': rank,
             'id': j,
             'score': sc,
             'title': job_title,
-            'full_title': state['job_info'][j]['title'],
-            'city': state['job_info'][j]['city'],
-            'company': state['job_info'][j].get('company', 'N/A'),
-            'url': state['job_info'][j]['url'],
+            'full_title': app_state['job_info'][j]['title'],
+            'city': app_state['job_info'][j]['city'],
+            'company': app_state['job_info'][j].get('company', 'N/A'),
+            'url': app_state['job_info'][j]['url'],
         })
 
     return jsonify(results_data)
@@ -452,9 +602,8 @@ def results():
 @app.route('/api/cv-full')
 def cv_full():
     user_state = get_user_state()
-    user_state = get_user_state()
     """Return full extracted CV text and structured info"""
-    if not state.get('is_ready'):
+    if not app_state.get('is_ready'):
         return jsonify({'active': False, 'initializing': True})
 
     if user_state.get('cv_text') is None:
@@ -466,8 +615,18 @@ def cv_full():
     email_match = re.search(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}', cv_text)
     phone_match = re.search(r'(?:\+84|0)\s*\d[\d\s.\-]{7,12}', cv_text)
     
-    skills = list(user_state.get('user_prob', {}).keys())
+    user_prob = user_state.get('user_prob', {})
+    skills_list = []
+    for s, p in user_prob.items():
+        skills_list.append({
+            'name': s,
+            'prob': round(p * 100, 1),
+            'is_core': s in CORE_SKILLS_CANON
+        })
     
+    # Sort skills by probability
+    skills_list.sort(key=lambda x: x['prob'], reverse=True)
+
     return jsonify({
         'active': True,
         'cv_text': cv_text,
@@ -477,75 +636,142 @@ def cv_full():
         'city': user_state.get('user_city', 'Unknown'),
         'email': email_match.group(0) if email_match else '',
         'phone': re.sub(r'\s+', '', phone_match.group(0)) if phone_match else '',
-        'skills': skills[:20],
-        'skills_count': len(skills),
+        'skills': [s['name'] for s in skills_list[:20]], # for backward compatibility
+        'detailed_skills': skills_list,
+        'skills_count': len(skills_list),
+        'core_skills_count': sum(1 for s in skills_list if s['is_core']),
         'filename': user_state.get('cv_filename', ''),
     })
 
 
-@app.route('/job/<job_id>')
-def job_detail(job_id):
+def _get_job_detail_data(job_id):
     user_state = get_user_state()
-    user_state = get_user_state()
-    """Get detailed job information"""
+    """Helper to get detailed job information for both API and template"""
     try:
-        if user_state.get('scores') is None:
-            return jsonify({'error': 'Please scan your CV first'}), 400
+        j = None
+        sc = 0.0
+        ex = {'components': {}}
+        
+        # 1. Try treating as index in scores
+        try:
+            idx = int(job_id)
+            if idx < len(user_state.get('scores', [])):
+                j, sc, ex = user_state['scores'][idx]
+        except (ValueError, TypeError):
+            pass
 
-        # job_id is now the string ID (e.g., 'JobPosting::DS_001')
-        match = next((item for item in user_state['scores'] if item[0] == job_id), None)
-        if not match:
-            return jsonify({'error': 'Job not found in your matches'}), 404
+        # 2. Try treating as actual job ID from app_state
+        if j is None:
+            if job_id in app_state.get('job_info', {}):
+                j = job_id
+            else:
+                # Search by job_id attribute in job_info
+                for node_id, info in app_state.get('job_info', {}).items():
+                    if str(info.get('job_id')) == str(job_id):
+                        j = node_id
+                        break
+        
+        if j is None:
+            return None, "Job not found"
 
-        j, sc, ex = match
-        job_info = state['job_info'][j]
-        job_prob = job_info["prob_skills"]
+        job_info = app_state['job_info'][j]
+        job_prob = job_info.get("prob_skills", {})
 
-        if user_state['user_raw2can_best']:
+        # Compute match score if not already provided (e.g. from search)
+        if sc == 0.0 and user_state.get('user_prob'):
+            # This is a simplified score if we don't have the full comparison context
+            # or we could re-run the scorer for this one job.
+            # For now, we'll just show what we have.
+            pass
+
+        if user_state.get('user_raw2can_best'):
             user_prob_max_raw = {
                 canon: float(p)
                 for canon, (_, p) in user_state['user_raw2can_best'].items()
                 if isinstance(p, (int, float))
             }
         else:
-            user_prob_max_raw = user_state['user_prob']
+            user_prob_max_raw = user_state.get('user_prob', {})
 
-        xai = explain_user_job(
-            user_prob_max_raw,
-            job_prob,
-            user_raw2can=user_state['user_raw2can_map'],
-            job_raw2can=job_info.get('raw2can')
-        )
+        xai = explain_user_job(user_prob_max_raw, job_prob, 
+                              user_raw2can=user_state.get('user_raw2can_map'), 
+                              job_raw2can=job_info.get('raw2can'))
 
         detail = {
+            'id': job_id,
             'title': job_info['title'],
             'company': job_info.get('company', 'N/A'),
             'city': job_info['city'],
             'url': job_info['url'],
+            'description': job_info.get('description', ''),
+            'requirements': job_info.get('requirements', ''),
+            'benefits': job_info.get('benefits', ''),
             'score': sc,
-            'components': ex['components'],
+            'components': ex.get('components', {}),
             'skill_coverage': f"{xai['components']['skill_coverage']*100:.1f}%",
-            'matched_skills': xai['evidence']['matched_skills'][:10],
-            'missing_skills': xai['evidence']['missing_skills'][:10],
+            'matched_skills': xai['evidence']['matched_skills'][:15],
+            'missing_skills': [
+                {
+                    'name': s['skill'],
+                    'tip': f"Focus on {s['skill']} to improve your profile.",
+                    'url': f"https://www.google.com/search?q=learn+{s['skill']}+online+course"
+                } for s in xai['evidence']['missing_skills'][:10]
+            ],
+            'ai_insight': _generate_ai_insight(sc, xai['evidence']['matched_skills'])
         }
+        return detail, None
 
-        return jsonify(detail)
-
-    except ValueError:
-        return jsonify({'error': 'Invalid job id'}), 400
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return None, str(e)
+
+def _generate_ai_insight(score, matched_skills):
+    """Generate dynamic AI insight based on match score and skills"""
+    if score >= 0.85:
+        base = "You are an exceptional match for this role!"
+    elif score >= 0.65:
+        base = "You are a strong candidate for this position."
+    elif score >= 0.45:
+        base = "You have a good foundation for this role, though some gaps exist."
+    else:
+        base = "This role might be a stretch, but your core skills are relevant."
+    
+    skill_part = ""
+    if matched_skills:
+        skill_part = f" Your expertise in {matched_skills[0]} is a key asset here."
+        
+    return f"{base}{skill_part} Highlight your adaptability and willingness to learn missing requirements."
+
+@app.route('/job/<job_id>')
+def job_detail_api(job_id):
+    """API endpoint for job details (JSON)"""
+    detail, error = _get_job_detail_data(job_id)
+    if error:
+        status_code = 404 if "not found" in error.lower() else 400
+        return jsonify({'error': error}), status_code
+    return jsonify(detail)
+
+@app.route('/job-detail/<job_id>')
+def job_detail_page(job_id):
+    """Render a dedicated job detail page"""
+    detail, error = _get_job_detail_data(job_id)
+    if error:
+        # Check if error is job not found
+        if "not found" in str(error).lower():
+            return render_template('pages/job_detail.html', error="Job Not Found", job=None), 404
+        return render_template('index.html', error=error)
+    return render_template('pages/job_detail.html', job=detail)
 
 @app.route('/user-skills')
 def user_skills():
     user_state = get_user_state()
-    user_state = get_user_state()
     """Get detected user skills"""
+    skills = []
     if user_state.get('user_prob') is None:
         return jsonify([])
-
-    skills = []
     for k, v in sorted(user_state['user_prob'].items(), key=lambda x: x[1], reverse=True):
+        core_tag = "CORE" if k in CORE_SKILLS_CANON else ""
         skills.append({
             'name': k,
             'probability': float(v),
@@ -559,14 +785,9 @@ def user_skills():
 @app.route('/statistics')
 def statistics():
     user_state = get_user_state()
-    user_state = get_user_state()
     """Get dataset statistics"""
-    if not state.get('is_ready') or state.get('job_nodes') is None or state.get('job_info') is None:
-        return jsonify({'error': 'System not ready. Please wait for initialization.'}), 503
-
-    job_nodes = state['job_nodes']
-    job_info = state['job_info']
-    user_prob = user_state.get('user_prob') or {}
+    job_nodes = app_state['job_nodes']
+    job_info = app_state['job_info']
 
     # Calculate stats
     Cj_sizes = [len(job_info[j]["prob_skills"]) for j in job_nodes if j in job_info]
@@ -574,7 +795,7 @@ def statistics():
 
     stats = {
         'total_jobs': len(job_nodes),
-        'user_skills': len(user_prob),
+        'user_skills': len(user_state.get('user_prob', {})),
         'avg_job_skills': round(Cj_sizes.mean(), 3),
         'median_job_skills': round(np.median(Cj_sizes), 3),
         'min_job_skills': int(Cj_sizes.min()),
@@ -585,8 +806,9 @@ def statistics():
 
 # @app.route('/graph')
 # def graph_data():
-    user_state = get_user_state()
-    user_state = get_user_state()
+    # user_state = get_user_state()
+    # user_state = get_user_state()
+    # user_state = get_user_state()
 #     """Get graph visualization data"""
 #     # Ensure the graph is available and the CV has been processed
 #     if state['G'] is None or user_state['cv_text'] is None:
@@ -631,7 +853,6 @@ def statistics():
 @app.route('/graph')
 def graph_data():
     user_state = get_user_state()
-    user_state = get_user_state()
     """Get focused knowledge graph data for visualization.
     Requires CV upload first to populate user node + MATCHES_JOB edges.
     Returns nodes/links with pre-computed positions.
@@ -642,7 +863,7 @@ def graph_data():
     if user_state.get('USER_ID') is None:
         return jsonify({'error': 'User node not created. CV processing incomplete.'}), 400
     if user_state.get('current_G') is None:
-        return jsonify({'error': 'Graph state missing. Try re-uploading your CV.'}), 400
+        return jsonify({'error': 'Graph state is not available after restart. Please re-upload your CV to regenerate graph context.'}), 400
 
     try:
         import logging
@@ -651,6 +872,9 @@ def graph_data():
         
         G = user_state['current_G']
         USER_ID = user_state['USER_ID']  # Safe now due to prior checks
+
+        if USER_ID not in G:
+            return jsonify({'error': 'User node missing in graph context. Please re-upload your CV.'}), 400
 
         logger.info(f"Generating graph for USER_ID={USER_ID}, G.nodes={len(G.nodes())}")
         
@@ -963,7 +1187,6 @@ QUESTION_ORDER = [
 @app.route('/interview/chat', methods=['POST'])
 def interview_chat():
     user_state = get_user_state()
-    user_state = get_user_state()
     """Smart Bilingual AI Interview — analyzes user responses with NLP"""
     if user_state.get('cv_text') is None:
         return jsonify({'reply': "I'm ready to interview you! Please upload your CV first so I can tailor the questions to your experience.\n\n(Tôi đã sẵn sàng phỏng vấn bạn! Vui lòng tải CV lên trước để tôi có thể điều chỉnh câu hỏi phù hợp với kinh nghiệm của bạn.)"})
@@ -979,7 +1202,7 @@ def interview_chat():
     
     target_job = "the position"
     if user_state.get('scores') and len(user_state['scores']) > 0:
-        target_job = state['job_info'][user_state['scores'][0][0]]['title']
+        target_job = app_state['job_info'][user_state['scores'][0][0]]['title']
 
     turn_count = len([h for h in history if h.get('role') == 'user'])
     
@@ -1078,25 +1301,72 @@ def interview_chat():
         
         reply = f"{ack_en}\n\n{q_en}\n\n({ack_vi}\n\n{q_vi})"
     
-    import time
-    time.sleep(0.6)
-    
+    latency_ms = (perf_counter() - request_started_at) * 1000
+    app.logger.info(
+        "[interview_chat] latency_ms=%.2f shallow=%s turn=%s topic_start=%s",
+        latency_ms,
+        is_shallow,
+        turn_count + 1,
+        topic_start
+    )
+
     return jsonify({
         'reply': reply,
         'turn': turn_count + 1,
         'total_turns': 10,
         'analysis': analysis,
+        'history_contract': {
+            'user_turn_requires_analysis': True,
+            'analysis_nullable': True
+        },
         'shallow': is_shallow  # Tell frontend this was a shallow response
     })
+
+
+def _normalize_interview_history(history):
+    """Normalize chat history into a stable schema."""
+    normalized = []
+    for turn in history or []:
+        if not isinstance(turn, dict):
+            continue
+        role = turn.get('role')
+        content = turn.get('content', '')
+        item = {
+            'role': role,
+            'content': content
+        }
+        if role == 'user':
+            item['analysis'] = turn.get('analysis')
+        elif 'analysis' in turn:
+            item['analysis'] = turn.get('analysis')
+        normalized.append(item)
+    return normalized
+
+
+def _extract_user_turn_analysis(history, idx, user_turn):
+    """
+    Prefer analysis on the user turn (new schema), then fallback to nearest following AI turn (legacy schema).
+    """
+    analysis = user_turn.get('analysis')
+    if isinstance(analysis, dict):
+        return analysis
+
+    for next_turn in history[idx + 1:]:
+        if next_turn.get('role') != 'ai':
+            continue
+        ai_analysis = next_turn.get('analysis')
+        if isinstance(ai_analysis, dict):
+            return ai_analysis
+        break
+    return None
 
 
 @app.route('/interview/summary', methods=['POST'])
 def interview_summary():
     user_state = get_user_state()
-    user_state = get_user_state()
     """Generate interview assessment summary"""
     data = request.json
-    history = data.get('history', [])
+    history = _normalize_interview_history(data.get('history', []))
     
     user_role = user_state.get('user_role_can', 'Professional')
     user_skills = list(user_state.get('user_prob', {}).keys())[:8]
@@ -1104,11 +1374,14 @@ def interview_summary():
     target_job = "the position"
     match_score = 0
     if user_state.get('scores') and len(user_state['scores']) > 0:
-        target_job = state['job_info'][user_state['scores'][0][0]]['title']
+        target_job = app_state['job_info'][user_state['scores'][0][0]]['title']
         match_score = round(user_state['scores'][0][1] * 100, 1)
     
     user_turns = [h for h in history if h.get('role') == 'user']
-    ai_turns = [h for h in history if h.get('role') == 'ai']
+    user_turn_analyses = []
+    for idx, h in enumerate(history):
+        if h.get('role') == 'user':
+            user_turn_analyses.append(_extract_user_turn_analysis(history, idx, h))
     questions_answered = len(user_turns)
     
     # Determine covered topics based on turn count
@@ -1122,7 +1395,11 @@ def interview_summary():
         topics.append(topic_labels[i])
     
     # 1. Technical Score (Depth)
-    tech_depths = [h.get('analysis', {}).get('depth_score', 0) for h in user_turns if h.get('analysis')]
+    tech_depths = [
+        a.get('depth_score', 0)
+        for a in user_turn_analyses
+        if isinstance(a, dict) and a.get('depth_score') is not None
+    ]
     avg_tech = sum(tech_depths)/len(tech_depths) if tech_depths else 0
     
     # 2. Communication Score (Word count & Variety)
@@ -1134,9 +1411,9 @@ def interview_summary():
     # 3. Confidence/Structure (STAR check)
     stars_found = 0
     total_star_possible = questions_answered * 4
-    for h in user_turns:
-        if h.get('analysis') and h.get('analysis').get('star_analysis'):
-            stars_found += sum(h['analysis']['star_analysis'].values())
+    for analysis in user_turn_analyses:
+        if isinstance(analysis, dict) and isinstance(analysis.get('star_analysis'), dict):
+            stars_found += sum(analysis['star_analysis'].values())
     star_score = (stars_found / total_star_possible * 100) if total_star_possible > 0 else 0
 
     # Assessment logic
@@ -1171,7 +1448,17 @@ def interview_summary():
         },
         'feedback': feedback,
         'feedback_vi': feedback_vi,
-        'detected_skills': list(set([s for h in user_turns if h.get('analysis') for s in h['analysis'].get('mentioned_skills', [])])),
+        'history_contract': {
+            'user_turn_requires_analysis': True,
+            'analysis_nullable': True,
+            'summary_reads_legacy_ai_analysis': True
+        },
+        'detected_skills': sorted(list(set([
+            s for analysis in user_turn_analyses
+            if isinstance(analysis, dict)
+            for s in (analysis.get('mentioned_skills') or [])
+            if s
+        ]))),
         'avg_response_words': avg_words,
         'target_job': target_job,
         'match_score': match_score,
@@ -1182,7 +1469,6 @@ def interview_summary():
 @app.route('/api/user-profile')
 def user_profile():
     user_state = get_user_state()
-    user_state = get_user_state()
     """Get summarized user profile for UI widgets"""
     if user_state.get('cv_text') is None:
         return jsonify({'active': False})
@@ -1191,7 +1477,7 @@ def user_profile():
     match_score = 0
     if user_state.get('scores') and len(user_state['scores']) > 0:
         best_job_id = user_state['scores'][0][0]
-        target_job = state['job_info'][best_job_id]['title']
+        target_job = app_state['job_info'][best_job_id]['title']
         match_score = user_state['scores'][0][1]
 
     return jsonify({
@@ -1205,7 +1491,6 @@ def user_profile():
 
 @app.route('/api/cv-data')
 def cv_data():
-    user_state = get_user_state()
     user_state = get_user_state()
     """Extract structured CV data for the CV Builder auto-fill"""
     if user_state.get('cv_text') is None:
@@ -1327,14 +1612,14 @@ def salary_estimate():
     location = data.get('location', '').lower()
     skills = data.get('skills', [])
 
-    if state['df'] is None:
+    if app_state['df'] is None:
         return jsonify({
             'min': 1000 + (exp_year * 200),
             'max': 1800 + (exp_year * 300),
             'currency': 'USD (Est.)'
         })
 
-    df = state['df']
+    df = app_state['df']
     mask_role = df['job_title'].str.lower().str.contains(role_query, na=False)
     
     if 'remote' in location:
@@ -1403,13 +1688,10 @@ def salary_estimate():
 @app.route('/api/featured-jobs')
 def featured_jobs():
     """Get featured job opportunities for home page"""
-    if not state.get('is_ready'):
-        return jsonify({'jobs': [], 'initializing': True})
-        
-    if state['df'] is None:
+    if app_state['df'] is None:
         return jsonify({'jobs': []})
     
-    df = state['df']
+    df = app_state['df']
     
     # Get 6 random jobs (to have variety on refresh)
     sample_size = min(6, len(df))
@@ -1458,22 +1740,25 @@ def featured_jobs():
 def api_search():
     """Real-time job search with advanced filtering and sorting"""
     query = request.args.get('q', '').lower()
-    city = request.args.get('city', 'All Locations').lower()
+    location = request.args.get('location', 'All Locations').lower()
     offset = int(request.args.get('offset', 0))
     limit = int(request.args.get('limit', 20))
     exp_levels = request.args.get('exp', '') # e.g. "intern,junior,senior,lead"
     job_types = request.args.get('type', '') # e.g. "full,part,remote"
     min_salary = int(request.args.get('min_salary', 0))
-    sort_by = request.args.get('sort', 'newest')
+    sort_by = request.args.get('sort', 'newest')  # newest, relevance, salary
+    if location in ('all', 'all locations'):
+        location = ''
+    if exp_levels.strip().lower() == 'all':
+        exp_levels = ''
+    if job_types.strip().lower() == 'all':
+        job_types = ''
     
-    if not state.get('is_ready'):
-        return jsonify({'jobs': [], 'has_more': False, 'total': 0, 'initializing': True})
-        
-    if state['df'] is None:
+    if app_state['df'] is None:
         return jsonify({'jobs': [], 'has_more': False, 'total': 0})
 
-    df = state['df']
-    mask = pd.Series([True] * len(df))
+    df = app_state['df']
+    mask = pd.Series([True] * len(df), index=df.index)
 
     # 1. Keyword Search (support multiple keywords, all must match)
     if query:
@@ -1487,25 +1772,28 @@ def api_search():
         
         for keyword in keywords:
             keyword_escaped = re.escape(keyword.lower())
-            kw_mask = pd.Series([False] * len(df))
+            kw_mask = pd.Series([False] * len(df), index=df.index)
             for col in search_cols:
                 if col in df.columns:
                     kw_mask |= df[col].astype(str).str.lower().str.contains(keyword_escaped, na=False, regex=True)
             mask &= kw_mask
 
-    # 2. City Filter
-    if city != 'all locations':
-        if city == 'remote':
-            mask &= df['location'].str.lower().str.contains('remote', na=False)
-        else:
-            mask &= df['location'].str.lower().str.contains(city, na=False)
+    # 2. Location Filter (Enhanced with VN mappings)
+    if location and location != 'all locations':
+        loc_map = {
+            'ho chi minh city': 'hồ chí minh|hcm|tp. hcm|tphcm|sài gòn',
+            'hanoi': 'hà nội|hanoi|hn',
+            'da nang': 'đà nẵng|đà nẵng|dn',
+            'remote': 'remote|từ xa|work from home|wfh'
+        }
+        pattern = loc_map.get(location, location)
+        mask &= df['location'].str.lower().str.contains(pattern, na=False, regex=True)
 
-    # 3. Job Type Filter (Only apply if NOT all options selected)
+    # 3. Job Type Filter (Enhanced)
     if job_types:
         type_list = [t.strip() for t in job_types.split(',') if t.strip()]
-        # If all 4 types selected, skip filter (means "All")
         if len(type_list) < 4:
-            t_mask = pd.Series([False] * len(df))
+            t_mask = pd.Series([False] * len(df), index=df.index)
             for t in type_list:
                 if t == 'full': 
                     t_mask |= df['job_type'].str.lower().str.contains('toàn thời gian|full|fulltime|full-time', na=False, regex=True)
@@ -1513,29 +1801,49 @@ def api_search():
                     t_mask |= df['job_type'].str.lower().str.contains('bán thời gian|part|parttime|part-time', na=False, regex=True)
                 elif t == 'remote': 
                     t_mask |= df['location'].str.lower().str.contains('remote|từ xa|work from home|wfh', na=False, regex=True)
-                elif t == 'contract': 
-                    t_mask |= df['job_type'].str.lower().str.contains('thực tập|hợp đồng|freelance|contract|intern', na=False, regex=True)
+                elif t == 'contract':
+                    t_mask |= df['job_type'].astype(str).str.lower().str.contains(r'hợp đồng|freelance|contract', na=False, regex=True)
             mask &= t_mask
 
-    # 4. Experience Filter (Only apply if NOT all options selected)
+    # 4. Experience Filter
     if exp_levels:
         exp_list = [e.strip() for e in exp_levels.split(',') if e.strip()]
-        # If all 4 experience levels selected, skip filter (means "All")
         if len(exp_list) < 4:
-            exp_mask = pd.Series([False] * len(df))
+            exp_mask = pd.Series([False] * len(df), index=df.index)
+
+            text = (
+                df.get('job_title', pd.Series('', index=df.index)).astype(str) + ' ' +
+                df.get('experience', pd.Series('', index=df.index)).astype(str) + ' ' +
+                df.get('requirements', pd.Series('', index=df.index)).astype(str) + ' ' +
+                df.get('job_desc', pd.Series('', index=df.index)).astype(str)
+            ).str.lower()
+
             for level in exp_list:
                 if level == 'intern':
-                    exp_mask |= df['job_title'].str.lower().str.contains('intern|fresher|thực tập|mới tốt nghiệp|sinh viên', na=False, regex=True)
+                    exp_mask |= text.str.contains(
+                        r'intern|fresher|thực tập|sinh viên|trainee|mới tốt nghiệp|không yêu cầu kinh nghiệm|0 năm',
+                        na=False, regex=True
+                    )
                 elif level == 'junior':
-                    exp_mask |= df['job_title'].str.lower().str.contains('junior|entry|nhân viên|nv|1 năm|2 năm|1-2', na=False, regex=True)
+                    exp_mask |= text.str.contains(
+                        r'junior|entry|nhân viên|1 năm|2 năm|1-2|0-2|ít nhất 1',
+                        na=False, regex=True
+                    )
                 elif level == 'senior':
-                    exp_mask |= df['job_title'].str.lower().str.contains('senior|expert|middle|chuyên gia|3 năm|4 năm|5 năm', na=False, regex=True)
+                    exp_mask |= text.str.contains(
+                        r'senior|middle|expert|3 năm|4 năm|5 năm|3-5|từ 3',
+                        na=False, regex=True
+                    )
                 elif level == 'lead':
-                    exp_mask |= df['job_title'].str.lower().str.contains('lead|manager|head|director|trưởng|giám đốc|quản lý', na=False, regex=True)
+                    exp_mask |= text.str.contains(
+                        r'lead|leader|manager|head|director|trưởng|quản lý|architect',
+                        na=False, regex=True
+                    )
+
             mask &= exp_mask
 
     filtered_df = df[mask]
-    
+
     # 5. Salary Filter
     if min_salary > 0:
         def check_salary(s_str):
@@ -1552,12 +1860,22 @@ def api_search():
         filtered_df = filtered_df[filtered_df['salary'].apply(check_salary)]
 
     # 6. Sorting
+    sort_applied = 'relevance_original_order'
     if sort_by == 'newest':
-        # Sort by id descending (higher id = newer job)
-        if 'id' in filtered_df.columns:
-            filtered_df = filtered_df.sort_values('id', ascending=False)
+        # Priority: sort by normalized `job_id` from Excel (higher = newer)
+        if 'job_id' in filtered_df.columns:
+            filtered_df = filtered_df.copy()
+            filtered_df['_sort_job_id'] = pd.to_numeric(filtered_df['job_id'], errors='coerce')
+            if filtered_df['_sort_job_id'].notna().any():
+                filtered_df = filtered_df.sort_values('_sort_job_id', ascending=False)
+                sort_applied = 'job_id_numeric_desc'
+            else:
+                filtered_df = filtered_df.iloc[::-1]  # Fallback only when job_id is not parseable
+                sort_applied = 'fallback_reverse_unparseable_job_id'
+            filtered_df = filtered_df.drop(columns=['_sort_job_id'])
         else:
-            filtered_df = filtered_df.iloc[::-1]  # Reverse order as fallback
+            filtered_df = filtered_df.iloc[::-1]
+            sort_applied = 'fallback_reverse_missing_job_id'
     elif sort_by == 'salary':
         # Sort by salary (high to low)
         def extract_max_salary(s_str):
@@ -1574,6 +1892,7 @@ def api_search():
         filtered_df['_sort_salary'] = filtered_df['salary'].apply(extract_max_salary)
         filtered_df = filtered_df.sort_values('_sort_salary', ascending=False)
         filtered_df = filtered_df.drop(columns=['_sort_salary'])
+        sort_applied = 'salary_desc'
     # else: relevance - keep original order
 
     total_count = len(filtered_df)
@@ -1582,13 +1901,13 @@ def api_search():
     output = []
     for _, row in results.iterrows():
         output.append({
-            'id': row.get('id', ''),
+            'id': row.get('job_id', ''),
             'title': row.get('job_title', 'Unknown Role'),
             'company': row.get('company', 'Unknown Company'),
             'location': row.get('location', 'Remote'),
             'salary': row.get('salary', 'Thỏa thuận'),
             'url': row.get('job_url', '#'),
-            'type': 'Full-time'
+            'type': row.get('job_type', 'Full-time')
         })
     
     if output:
@@ -1600,7 +1919,8 @@ def api_search():
     return jsonify({
         'jobs': output,
         'has_more': (offset + limit) < total_count,
-        'total': total_count
+        'total': total_count,
+        'sort_applied': sort_applied
     })
 
 
@@ -1615,16 +1935,16 @@ def init_application():
         # 1. Load Excel Data
         _, df = load_excel_file(excel_path)
         
-        state['df'] = df
+        app_state['df'] = df
         
         # 2. Build Base Job Graph
         G = nx.DiGraph()
         init_rdf_graph()
         job_info = {}
         job_nodes, job_info = build_job_nodes(G, df, job_info)
-        state['G'] = G
-        state['job_nodes'] = job_nodes
-        state['job_info'] = job_info
+        app_state['G'] = G
+        app_state['job_nodes'] = job_nodes
+        app_state['job_info'] = job_info
         
         # 3. Pre-compute TF-IDF for all jobs
         print("Pre-computing TF-IDF vectors...")
@@ -1639,18 +1959,18 @@ def init_application():
         X = tfidf.fit_transform(texts)
         X = normalize(X)
         
-        state['tfidf'] = tfidf
-        state['X'] = X
-        state['IDX'] = {j: i for i, j in enumerate(valid_job_nodes)}
-        state['valid_job_nodes'] = valid_job_nodes
+        app_state['tfidf'] = tfidf
+        app_state['X'] = X
+        app_state['IDX'] = {j: i for i, j in enumerate(valid_job_nodes)}
+        app_state['valid_job_nodes'] = valid_job_nodes
         
         # 4. Pre-compute Job-to-Job Similarities (SIMILAR_TO edges)
         print("Pre-calculating job-job similarities...")
-        sim_edge_count = build_job_job_similar_edges(G, valid_job_nodes, job_info, state['IDX'], X)
+        sim_edge_count = build_job_job_similar_edges(G, valid_job_nodes, job_info, app_state['IDX'], X)
         print(f"Added {sim_edge_count} SIMILAR_TO edges.")
         
         print("[SUCCESS] System Ready. Server starting on http://127.0.0.1:5000")
-        state['is_ready'] = True
+        app_state['is_ready'] = True
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -1661,6 +1981,6 @@ def init_application():
 # Use: python main.py  (which calls init_application() first)
 # Running web/app.py directly will skip init_application() → all requests crash.
 if __name__ == "__main__":
-    import sys
-    print("[WARNING] Run 'python main.py' from the project root, not this file directly.")
-    sys.exit(1)
+    init_application()
+    app.run(host="127.0.0.1", port=5000, debug=True)
+

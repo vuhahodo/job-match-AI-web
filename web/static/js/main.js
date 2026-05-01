@@ -334,11 +334,17 @@ async function renderDashboardSkills() {
     try {
         const response = await fetch('/user-skills');
         const skills = await response.json();
+        const normalizedSkills = Array.isArray(skills) ? skills.map(s => ({
+            name: s.name,
+            probability: Number(s.probability || 0),
+            is_core: Boolean(s.is_core),
+            tag: s.tag || ''
+        })) : [];
 
-        if (skills && skills.length > 0) {
+        if (normalizedSkills.length > 0) {
             // Take top 5 skills and format them
             const colors = ['primary', 'info', 'warning', 'success', 'danger'];
-            const topSkills = skills.slice(0, 5).map((s, i) => ({
+            const topSkills = normalizedSkills.slice(0, 5).map((s, i) => ({
                 name: s.name,
                 level: Math.round(s.probability * 100),
                 color: colors[i % colors.length]
@@ -549,8 +555,35 @@ function setupUploadForm() {
     const form = document.getElementById('uploadForm');
     const fileInput = document.getElementById('pdfFile');
     const uploadArea = document.querySelector('.upload-area');
+    const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+    const inlineError = document.getElementById('uploadInlineError');
+    const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
 
     if (!form || !fileInput) return;
+
+    const setInlineError = (message) => {
+        if (!inlineError) return;
+        if (message) {
+            inlineError.textContent = message;
+            inlineError.classList.remove('d-none');
+        } else {
+            inlineError.textContent = '';
+            inlineError.classList.add('d-none');
+        }
+    };
+
+    const validatePDF = (file) => {
+        if (!file) return 'Please select a PDF file.';
+        const name = (file.name || '').toLowerCase();
+        const type = (file.type || '').toLowerCase();
+        if (!name.endsWith('.pdf') && type !== 'application/pdf') {
+            return 'Only PDF files are allowed.';
+        }
+        if (file.size > MAX_UPLOAD_SIZE) {
+            return 'File size must be 100MB or less.';
+        }
+        return '';
+    };
 
     // Drag and drop events
     if (uploadArea) {
@@ -577,12 +610,25 @@ function setupUploadForm() {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        setInlineError('');
+
+        const selectedFile = fileInput.files[0];
+        const validationError = validatePDF(selectedFile);
+        if (validationError) {
+            setInlineError(validationError);
+            return;
+        }
 
         const loader = document.getElementById('globalLoader');
         if (loader) loader.classList.add('active');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.dataset.originalHtml = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
+        }
 
         const formData = new FormData();
-        formData.append('pdf_file', fileInput.files[0]);
+        formData.append('pdf_file', selectedFile);
 
         try {
             const response = await fetch('/upload', {
@@ -602,20 +648,43 @@ function setupUploadForm() {
                 // Reload graph if needed
                 // initializeGraph(true);
             } else {
-                showToast('Error', data.error || 'Upload failed', 'danger');
+                setInlineError(data.error || 'Upload failed');
             }
         } catch (error) {
-            showToast('Error', error.message, 'danger');
+            setInlineError(error.message || 'Upload failed');
         } finally {
             if (loader) loader.classList.remove('active');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = submitBtn.dataset.originalHtml || submitBtn.innerHTML;
+            }
         }
     });
 }
 
 function handleFiles(files) {
     const fileLabel = document.getElementById('fileNameDisplay');
+    const inlineError = document.getElementById('uploadInlineError');
+    const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
     if (files.length > 0 && fileLabel) {
-        fileLabel.textContent = files[0].name;
+        const file = files[0];
+        const name = (file.name || '').toLowerCase();
+        const type = (file.type || '').toLowerCase();
+        if ((!name.endsWith('.pdf') && type !== 'application/pdf') || file.size > MAX_UPLOAD_SIZE) {
+            fileLabel.style.display = 'none';
+            if (inlineError) {
+                inlineError.textContent = !name.endsWith('.pdf') && type !== 'application/pdf'
+                    ? 'Only PDF files are allowed.'
+                    : 'File size must be 100MB or less.';
+                inlineError.classList.remove('d-none');
+            }
+            return;
+        }
+        if (inlineError) {
+            inlineError.textContent = '';
+            inlineError.classList.add('d-none');
+        }
+        fileLabel.textContent = file.name;
         fileLabel.style.display = 'inline-block';
     }
 }
@@ -650,10 +719,10 @@ async function loadResults() {
                                     <i class="bi bi-file-earmark-text me-2"></i>CV Scan Results
                                 </h5>
                                 <div class="d-flex gap-2 align-items-center">
-                                    <span class="badge bg-white bg-opacity-25 text-white">
+                                    <span class="badge bg-white bg-opacity-75 text-dark">
                                         <i class="bi bi-file-pdf me-1"></i>${cvData.filename || 'CV'}
                                     </span>
-                                    <span class="badge bg-white bg-opacity-25 text-white">
+                                    <span class="badge bg-white bg-opacity-75 text-dark">
                                         ${cvData.char_count.toLocaleString()} chars • ${cvData.line_count} lines
                                     </span>
                                 </div>
@@ -735,7 +804,7 @@ async function loadResults() {
                             </div>
                         </div>
                         <div>
-                            <button class="btn btn-outline-primary btn-sm me-2" onclick="loadJobDetail('${job.id}')">View Analysis</button>
+                            <a href="/job-detail/${job.id}" class="btn btn-outline-primary btn-sm me-2">View Analysis</a>
                             <a href="${job.url}" target="_blank" class="btn btn-primary btn-sm">Apply</a>
                         </div>
                     </div>
@@ -776,7 +845,7 @@ async function loadResults() {
             <i class="bi bi-exclamation-triangle-fill fs-4"></i>
             <div>
                 <div class="fw-bold">Scan Incomplete</div>
-                <div>${msg}</div>
+                <div>${escapeHtml(msg)}</div>
             </div>
         </div>`;
     }
@@ -802,9 +871,19 @@ function toggleCVText() {
 
 // Escape HTML to prevent XSS in CV text display
 function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    const str = String(text ?? '');
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function decodeHtmlEntities(text) {
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value;
 }
 
 async function loadJobDetail(index) {
@@ -862,6 +941,266 @@ async function loadJobDetail(index) {
     }
 }
 
+// Enhanced Skills Profile - Detailed Profile Page
+async function loadEnhancedSkillsProfile() {
+    const container = document.getElementById('skillsProfile');
+    if (!container) return;
+
+    try {
+        // Fetch skills and CV data in parallel
+        const [skillsResponse, cvResponse] = await Promise.all([
+            fetch('/user-skills'),
+            fetch('/api/cv-full')
+        ]);
+
+        const skills = await skillsResponse.json();
+        const cvData = await cvResponse.json();
+
+        // Handle empty state
+        if (!cvData.active || !skills || skills.length === 0) {
+            container.innerHTML = renderEmptyState();
+            return;
+        }
+
+        // Normalize and sort skills
+        const normalizedSkills = Array.isArray(skills) ? skills.map(skill => ({
+            name: skill.name,
+            is_core: Boolean(skill.is_core),
+            probability: skill.probability || 0.5
+        })) : [];
+
+        // Separate skills
+        const coreSkills = normalizedSkills.filter(s => s.is_core).sort((a, b) => b.probability - a.probability);
+        const supportingSkills = normalizedSkills.filter(s => !s.is_core).sort((a, b) => b.probability - a.probability);
+        
+        // Calculate average confidence
+        const avgConfidence = Math.round(
+            (normalizedSkills.reduce((sum, s) => sum + s.probability, 0) / normalizedSkills.length) * 100
+        );
+
+        // Generate growth suggestions (top missing skills based on detected role)
+        const growthSuggestions = generateGrowthSuggestions(normalizedSkills, cvData.role);
+
+        // Build HTML
+        const html = `
+            <!-- Hero Section -->
+            <div class="skills-hero">
+                <div class="skills-hero-content">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <h1 class="mb-2">${escapeHtml(cvData.role || 'Professional')}</h1>
+                            <div class="d-flex gap-2 flex-wrap">
+                                ${cvData.city ? `<span class="badge bg-white bg-opacity-75 text-dark"><i class="bi bi-geo-alt me-1"></i>${escapeHtml(cvData.city)}</span>` : ''}
+                                ${cvData.email ? `<span class="badge bg-white bg-opacity-75 text-dark"><i class="bi bi-envelope me-1"></i>${escapeHtml(cvData.email)}</span>` : ''}
+                            </div>
+                        </div>
+                        <small class="text-white-50">CV: ${escapeHtml(cvData.filename)}</small>
+                    </div>
+
+                    <!-- Profile Stats -->
+                    <div class="profile-summary">
+                        <div class="stat-card">
+                            <span class="stat-number">${normalizedSkills.length}</span>
+                            <span class="stat-label">Total Skills</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-number">${coreSkills.length}</span>
+                            <span class="stat-label">Core Skills</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-number">${avgConfidence}%</span>
+                            <span class="stat-label">Avg. Confidence</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-number">${supportingSkills.length}</span>
+                            <span class="stat-label">Supporting</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CTA Buttons -->
+            <div class="skills-cta mb-4">
+                <a href="/results-page" class="cta-button btn btn-primary">
+                    <i class="bi bi-briefcase-fill"></i>View Matched Jobs
+                </a>
+                <a href="/interview-page" class="cta-button btn btn-success">
+                    <i class="bi bi-chat-dots-fill"></i>Start Interview Practice
+                </a>
+                <a href="/upload_page" class="cta-button btn btn-info">
+                    <i class="bi bi-upload"></i>Re-upload CV
+                </a>
+            </div>
+
+            <!-- Core Skills Section -->
+            <div class="skills-section">
+                <h2 class="section-title">
+                    <i class="bi bi-star-fill text-warning me-2"></i>Core Skills (${coreSkills.length})
+                </h2>
+                <div class="row g-3 mt-3">
+                    ${coreSkills.length > 0 ? 
+                        coreSkills.map(skill => renderSkillCard(skill, 'core')).join('') 
+                        : '<p class="text-muted">No core skills detected.</p>'
+                    }
+                </div>
+            </div>
+
+            <!-- Supporting Skills Section -->
+            <div class="skills-section">
+                <h2 class="section-title">
+                    <i class="bi bi-lightbulb text-info me-2"></i>Supporting Skills (${supportingSkills.length})
+                </h2>
+                <div class="row g-3 mt-3">
+                    ${supportingSkills.length > 0 ? 
+                        supportingSkills.map(skill => renderSkillCard(skill, 'supporting')).join('') 
+                        : '<p class="text-muted">No supporting skills detected.</p>'
+                    }
+                </div>
+            </div>
+
+            <!-- Growth Suggestions Section -->
+            <div class="skills-section">
+                <h2 class="section-title">
+                    <i class="bi bi-trending-up text-success me-2"></i>Growth Suggestions
+                </h2>
+                <div class="row g-3 mt-3">
+                    ${growthSuggestions.length > 0 ? 
+                        growthSuggestions.map((skill, idx) => `
+                            <div class="col-lg-6">
+                                <div class="skill-card">
+                                    <div class="skill-info">
+                                        <div class="skill-name">${escapeHtml(skill)}</div>
+                                        <div class="text-muted small">Recommended for your role</div>
+                                    </div>
+                                    <span class="badge bg-success">Add</span>
+                                </div>
+                            </div>
+                        `).join('')
+                        : '<p class="text-muted">No growth suggestions at this time.</p>'
+                    }
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = html;
+
+    } catch (error) {
+        console.error('Error loading skills profile:', error);
+        container.innerHTML = `
+            <div class="alert alert-danger border-0 rounded-3">
+                <i class="bi bi-exclamation-triangle me-2"></i>Failed to load skills profile. Please try again.
+            </div>
+        `;
+    }
+}
+
+function renderSkillCard(skill, type) {
+    const percentage = Math.round(skill.probability * 100);
+    const badgeClass = type === 'core' ? 'badge-core' : 'badge-supporting';
+    const badgeText = type === 'core' ? 'CORE' : 'SUPPORTING';
+    const barColor = type === 'core' ? 'success' : 'info';
+
+    return `
+        <div class="col-lg-6 col-xl-4">
+            <div class="skill-card">
+                <div class="skill-info">
+                    <div class="skill-name">${escapeHtml(skill.name)}</div>
+                    <span class="skill-badge ${badgeClass}">${badgeText}</span>
+                    <div class="progress-container">
+                        <div class="progress">
+                            <div class="progress-bar bg-${barColor}" style="width: ${percentage}%"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="skill-confidence">${percentage}%</div>
+            </div>
+        </div>
+    `;
+}
+
+function renderEmptyState() {
+    return `
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="bi bi-file-earmark-pdf"></i>
+            </div>
+            <h2 class="empty-state-title">No Skills Profile Yet</h2>
+            <p class="empty-state-text">Upload your CV to extract and analyze your professional skills profile.</p>
+            <a href="/upload_page" class="btn btn-primary btn-lg">
+                <i class="bi bi-upload me-2"></i>Upload Your CV
+            </a>
+        </div>
+    `;
+}
+
+function generateGrowthSuggestions(currentSkills, role) {
+    const currentSkillNames = new Set(currentSkills.map(s => s.name.toLowerCase()));
+    
+    let suggestedSkills = [];
+    
+    // Normalize role to lowercase for comparison
+    const normalizedRole = (role || '').toLowerCase();
+    
+    // Role-based skill suggestions
+    if (normalizedRole.includes('sales') || normalizedRole.includes('bán hàng') || normalizedRole.includes('business development')) {
+        // Sales/Business Development skills
+        suggestedSkills = [
+            'CRM', 'Lead Generation', 'Negotiation', 'Customer Relationship Management',
+            'Sales Forecasting', 'Communication', 'Market Research', 'Excel', 'Presentation Skills',
+            'Pipeline Management', 'Client Management', 'Strategic Planning'
+        ];
+    } else if (normalizedRole.includes('account') || normalizedRole.includes('finance') || normalizedRole.includes('tài chính') || normalizedRole.includes('kế toán')) {
+        // Accounting/Finance skills
+        suggestedSkills = [
+            'Excel', 'Financial Reporting', 'Taxes', 'Accounting Software', 'Budgeting',
+            'Data Entry', 'Compliance', 'GAAP', 'Audit', 'Cost Analysis',
+            'Reconciliation', 'P&L Statement', 'Financial Analysis'
+        ];
+    } else if (normalizedRole.includes('developer') || normalizedRole.includes('engineer') || normalizedRole.includes('programmer') || 
+               normalizedRole.includes('devops') || normalizedRole.includes('architect') || normalizedRole.includes('cntt') || 
+               normalizedRole.includes('it ')) {
+        // IT/Developer skills
+        suggestedSkills = [
+            'Cloud Computing', 'Docker', 'Kubernetes', 'CI/CD', 'API Development',
+            'Microservices', 'System Design', 'Machine Learning', 'DevOps', 'AWS',
+            'Azure', 'GCP', 'GraphQL', 'Data Security', 'Testing Automation'
+        ];
+    } else if (normalizedRole.includes('marketing') || normalizedRole.includes('market') || normalizedRole.includes('thị trường')) {
+        // Marketing skills
+        suggestedSkills = [
+            'Digital Marketing', 'SEO', 'Content Marketing', 'Social Media Marketing',
+            'Email Marketing', 'Analytics', 'Google Analytics', 'A/B Testing',
+            'Brand Strategy', 'Market Research', 'Campaign Management', 'Communication'
+        ];
+    } else if (normalizedRole.includes('hr') || normalizedRole.includes('human resources') || normalizedRole.includes('nhân sự')) {
+        // HR skills
+        suggestedSkills = [
+            'Recruitment', 'Employee Relations', 'Performance Management', 'Payroll',
+            'Training & Development', 'HRIS', 'Labor Laws', 'Communication',
+            'Conflict Resolution', 'Onboarding', 'Excel', 'Data Management'
+        ];
+    } else if (normalizedRole.includes('manager') || normalizedRole.includes('lead') || normalizedRole.includes('director') || normalizedRole.includes('quản lý')) {
+        // Management skills
+        suggestedSkills = [
+            'Project Management', 'Team Leadership', 'Strategic Planning', 'Decision Making',
+            'Communication', 'Mentoring', 'Budget Management', 'Risk Management',
+            'Agile Methodology', 'Performance Metrics', 'Stakeholder Management', 'Excel'
+        ];
+    } else {
+        // Default/General professional skills
+        suggestedSkills = [
+            'Communication', 'Problem Solving', 'Project Management', 'Excel',
+            'Time Management', 'Leadership', 'Teamwork', 'Strategic Thinking',
+            'Data Analysis', 'Presentation Skills', 'Critical Thinking', 'Adaptability'
+        ];
+    }
+    
+    // Filter out skills already in the current skill set
+    const suggestions = suggestedSkills.filter(skill => !currentSkillNames.has(skill.toLowerCase()));
+    
+    return suggestions.slice(0, 6); // Return top 6 suggestions
+}
+
 async function loadSkills() {
     const container = document.getElementById('skillsList');
     if (!container) return;
@@ -871,6 +1210,11 @@ async function loadSkills() {
     try {
         const response = await fetch('/user-skills');
         const skills = await response.json();
+        const normalizedSkills = Array.isArray(skills) ? skills.map(skill => ({
+            name: skill.name,
+            is_core: Boolean(skill.is_core),
+            tag: skill.tag || ''
+        })) : [];
 
         if (!skills || skills.length === 0) {
             container.innerHTML = `
@@ -898,24 +1242,9 @@ async function loadSkills() {
             </div>
             <div class="row g-3">
         `;
-
-        skills.forEach((skill, i) => {
-            const pct = Math.round(skill.probability * 100);
-            const color = skill.is_core ? 'primary' : colors[i % colors.length];
-            const badge = skill.is_core
-                ? '<span class="badge bg-primary-subtle text-primary ms-2 small">CORE</span>'
-                : '';
-            html += `
-                <div class="col-md-6">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="fw-semibold small">${skill.name}${badge}</span>
-                        <span class="text-muted small">${pct}%</span>
-                    </div>
-                    <div class="progress" style="height: 6px;">
-                        <div class="progress-bar bg-${color}" style="width: ${pct}%"></div>
-                    </div>
-                </div>
-            `;
+        skills.forEach(skill => {
+            const className = skill.is_core ? 'badge bg-primary' : 'badge bg-secondary';
+            html += `<span class="${className} p-2">${skill.name}</span>`;
         });
 
         html += '</div>';
@@ -999,10 +1328,18 @@ function showToast(title, message, type = 'primary') {
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3 shadow-lg`;
     alertDiv.style.zIndex = '9999';
-    alertDiv.innerHTML = `
-        <strong>${title}</strong> ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
+
+    const strong = document.createElement('strong');
+    strong.textContent = title;
+    alertDiv.appendChild(strong);
+    alertDiv.appendChild(document.createTextNode(` ${message}`));
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-close';
+    closeBtn.setAttribute('data-bs-dismiss', 'alert');
+    alertDiv.appendChild(closeBtn);
+
     document.body.appendChild(alertDiv);
 
     setTimeout(() => {
@@ -1018,6 +1355,28 @@ let interviewState = {
     questionCount: 0,
     detectedSkills: new Set()
 };
+
+function attachAnalysisToLatestUserTurn(analysis) {
+    if (!analysis) return;
+    for (let i = interviewState.history.length - 1; i >= 0; i--) {
+        const turn = interviewState.history[i];
+        if (turn && turn.role === 'user') {
+            turn.analysis = analysis;
+            return;
+        }
+    }
+}
+
+function normalizeInterviewHistory(history = []) {
+    return history.map(turn => {
+        if (!turn || typeof turn !== 'object') return turn;
+        const normalized = { ...turn };
+        if (normalized.role === 'user' && !Object.prototype.hasOwnProperty.call(normalized, 'analysis')) {
+            normalized.analysis = null;
+        }
+        return normalized;
+    });
+}
 
 async function startInterview() {
     // 1. Fetch user profile for context
@@ -1096,13 +1455,14 @@ async function startInterviewWithTopic(topicKey, topicPrompt) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         message: topicPrompt,
-                        history: interviewState.history,
+                        history: normalizeInterviewHistory(interviewState.history),
                         topic_start: topicKey
                     })
                 });
                 const data = await response.json();
                 removeTypingIndicator(typingId);
                 if (data.reply) {
+                    attachAnalysisToLatestUserTurn(data.analysis);
                     addChatMessage('ai', data.reply);
                     interviewState.history.push({ role: 'ai', content: data.reply });
                     interviewState.questionCount++;
@@ -1150,15 +1510,16 @@ async function handleChatSubmit(e) {
         const response = await fetch('/interview/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message, history: interviewState.history })
+            body: JSON.stringify({ message: message, history: normalizeInterviewHistory(interviewState.history) })
         });
 
         const data = await response.json();
         removeTypingIndicator(typingId);
 
         if (data.reply) {
+            attachAnalysisToLatestUserTurn(data.analysis);
             addChatMessage('ai', data.reply);
-            interviewState.history.push({ role: 'ai', content: data.reply, analysis: data.analysis });
+            interviewState.history.push({ role: 'ai', content: data.reply });
             
             // Update Live Skills in UI
             if (data.analysis && data.analysis.mentioned_skills) {
@@ -1186,20 +1547,41 @@ async function handleChatSubmit(e) {
 }
 
 function formatInterviewText(text) {
-    // Convert **bold** markdown to <strong> tags
-    return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // Escape first, then allow minimal markdown (**bold**) only
+    const escaped = escapeHtml(text);
+    return escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+}
+
+function appendFormattedInterviewText(container, text) {
+    const formatted = formatInterviewText(text);
+    const parts = formatted.split(/(<strong>.*?<\/strong>)/g);
+
+    parts.forEach(part => {
+        if (!part) return;
+        const match = part.match(/^<strong>(.*?)<\/strong>$/);
+        if (match) {
+            const strong = document.createElement('strong');
+            strong.textContent = decodeHtmlEntities(match[1]);
+            container.appendChild(strong);
+        } else {
+            container.appendChild(document.createTextNode(decodeHtmlEntities(part)));
+        }
+    });
 }
 
 function addChatMessage(role, text) {
     const messagesDiv = document.getElementById('chat-messages');
     const bubble = document.createElement('div');
+    const textNode = document.createElement('span');
+    const metaNode = document.createElement('span');
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     bubble.className = `chat-bubble ${role} d-flex flex-column`;
-    bubble.innerHTML = `
-        <span>${formatInterviewText(text)}</span>
-        <span class="meta">${timestamp}</span>
-    `;
+    appendFormattedInterviewText(textNode, text);
+    metaNode.className = 'meta';
+    metaNode.textContent = timestamp;
+    bubble.appendChild(textNode);
+    bubble.appendChild(metaNode);
 
     messagesDiv.appendChild(bubble);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -1236,7 +1618,7 @@ async function endInterview() {
         const response = await fetch('/interview/summary', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ history: interviewState.history })
+            body: JSON.stringify({ history: normalizeInterviewHistory(interviewState.history) })
         });
         const summary = await response.json();
 
@@ -1254,9 +1636,13 @@ async function endInterview() {
         // 3. Render Strengths (Skills)
         const skillsContainer = document.getElementById('summary-skills');
         if (skillsContainer) {
-            skillsContainer.innerHTML = summary.detected_skills.map(s => 
-                `<span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 border border-primary border-opacity-25">${s}</span>`
-            ).join('');
+            skillsContainer.innerHTML = '';
+            (summary.detected_skills || []).forEach(s => {
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-primary bg-opacity-10 text-primary px-3 py-2 border border-primary border-opacity-25';
+                badge.textContent = s;
+                skillsContainer.appendChild(badge);
+            });
         }
 
         // 4. Render Dimension Bars
@@ -1310,9 +1696,14 @@ function updateLiveSkillsUI() {
     if (!container || interviewState.detectedSkills.size === 0) return;
     
     card.style.display = 'block';
-    container.innerHTML = Array.from(interviewState.detectedSkills).map(skill => 
-        `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 animate__animated animate__bounceIn" style="font-size: 0.7rem;">${skill}</span>`
-    ).join('');
+    container.innerHTML = '';
+    Array.from(interviewState.detectedSkills).forEach(skill => {
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 animate__animated animate__bounceIn';
+        badge.style.fontSize = '0.7rem';
+        badge.textContent = skill;
+        container.appendChild(badge);
+    });
 }
 
 
@@ -1480,7 +1871,7 @@ function changeSortOrder(sortValue, displayText, element) {
 async function handleJobSearch() {
     currentSearchOffset = 0; // Reset offset on new search
     const queryInput = document.getElementById('job-search-input');
-    const citySelect = document.getElementById('search-city-filter');
+    const locationSelect = document.getElementById('search-city-filter');
     const resultsDiv = document.getElementById('searchResults');
     const countSpan = document.getElementById('search-results-count');
     const loadMoreBtn = document.getElementById('btn-load-more');
@@ -1488,7 +1879,7 @@ async function handleJobSearch() {
     if (!resultsDiv || !queryInput) return;
 
     const query = queryInput.value;
-    const city = citySelect ? citySelect.value : 'All Locations';
+    const location = locationSelect ? locationSelect.value : 'All Locations';
 
     // Collect Experience Filters
     const expArr = [];
@@ -1513,7 +1904,7 @@ async function handleJobSearch() {
     resultsDiv.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Searching the database...</p></div>';
 
     try {
-        const url = `/api/search?q=${encodeURIComponent(query)}&city=${encodeURIComponent(city)}&offset=0&limit=${SEARCH_LIMIT}&exp=${expParam}&type=${typeParam}&min_salary=${minSalary}&sort=${currentSortOrder}`;
+        const url = `/api/search?q=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}&offset=0&limit=${SEARCH_LIMIT}&exp=${expParam}&type=${typeParam}&min_salary=${minSalary}&sort=${currentSortOrder}`;
         const response = await fetch(url);
         
         if (!response.ok) {
@@ -1556,14 +1947,14 @@ async function handleJobSearch() {
 
 async function loadMoreJobs() {
     const queryInput = document.getElementById('job-search-input');
-    const citySelect = document.getElementById('search-city-filter');
+    const locationSelect = document.getElementById('search-city-filter');
     const loadMoreBtn = document.getElementById('btn-load-more');
 
     if (!loadMoreBtn) return;
 
     currentSearchOffset += SEARCH_LIMIT;
     const query = queryInput ? queryInput.value : '';
-    const city = citySelect ? citySelect.value : 'All Locations';
+    const location = locationSelect ? locationSelect.value : 'All Locations';
 
     const originalText = loadMoreBtn.innerHTML;
     loadMoreBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading...';
@@ -1582,7 +1973,7 @@ async function loadMoreJobs() {
 
         const minSalary = document.getElementById('search-salary-range')?.value || 0;
 
-        const url = `/api/search?q=${encodeURIComponent(query)}&city=${encodeURIComponent(city)}&offset=${currentSearchOffset}&limit=${SEARCH_LIMIT}&exp=${expParam}&type=${typeParam}&min_salary=${minSalary}&sort=${currentSortOrder}`;
+        const url = `/api/search?q=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}&offset=${currentSearchOffset}&limit=${SEARCH_LIMIT}&exp=${expParam}&type=${typeParam}&min_salary=${minSalary}&sort=${currentSortOrder}`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -1616,9 +2007,14 @@ function renderJobsBatch(jobs) {
                         <p class="text-muted small mb-3">${job.company}</p>
                         <div class="d-flex justify-content-between align-items-center mt-auto">
                             <div class="text-primary fw-bold">${job.salary}</div>
-                            <a href="${job.url}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3">
-                                <i class="bi bi-box-arrow-up-right me-1"></i>Learn More
-                            </a>
+                            <div class="d-flex gap-2">
+                                <a href="/job-detail/${job.id}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                    <i class="bi bi-info-circle me-1"></i>Details
+                                </a>
+                                <a href="${job.url}" target="_blank" class="btn btn-sm btn-primary rounded-pill px-3">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i>Apply
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1630,13 +2026,13 @@ function renderJobsBatch(jobs) {
 
 function resetSearchFilters() {
     const queryInput = document.getElementById('job-search-input');
-    const citySelect = document.getElementById('search-city-filter');
+    const locationSelect = document.getElementById('search-city-filter');
     const salaryRange = document.getElementById('search-salary-range');
     const expChecks = ['exp-intern', 'exp-junior', 'exp-senior', 'exp-lead'];
     const typeChecks = ['type-full', 'type-part', 'type-remote', 'type-contract'];
 
     if (queryInput) queryInput.value = '';
-    if (citySelect) citySelect.selectedIndex = 0;
+    if (locationSelect) locationSelect.selectedIndex = 0;
     if (salaryRange) {
         salaryRange.value = 0;
         document.getElementById('search-salary-val').textContent = '$0k+';
@@ -1666,3 +2062,116 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+/**
+ * Enhanced Skills Profile rendering for skills_page
+ */
+async function loadEnhancedSkillsProfile() {
+    const container = document.getElementById('skillsProfile');
+    if (!container) return;
+
+    try {
+        const response = await fetch('/api/cv-full');
+        const data = await response.json();
+
+        if (!data.active) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="bi bi-cloud-upload empty-state-icon"></i>
+                    <h2 class="empty-state-title">No Skills Profile Found</h2>
+                    <p class="empty-state-text">Please upload and analyze your CV to see your detailed skills profile.</p>
+                    <a href="/upload_page" class="cta-button btn-primary">
+                        <i class="bi bi-upload"></i> Upload CV Now
+                    </a>
+                </div>
+            `;
+            return;
+        }
+
+        const skills = data.detailed_skills || [];
+        const coreSkills = skills.filter(s => s.is_core);
+        const otherSkills = skills.filter(s => !s.is_core);
+
+        let html = `
+            <div class="skills-hero">
+                <div class="skills-hero-content text-center">
+                    <span class="badge bg-primary bg-opacity-75 mb-3 px-3 py-2 rounded-pill text-white shadow-sm border border-white border-opacity-25">AI Professional Profile</span>
+                    <h1 class="display-4 fw-bold mb-2">${data.role}</h1>
+                    <div class="d-flex justify-content-center gap-3 mb-4">
+                        <span class="small"><i class="bi bi-geo-alt me-1"></i>${data.city}</span>
+                        <span class="small"><i class="bi bi-envelope me-1"></i>${data.email}</span>
+                    </div>
+                    
+                    <div class="profile-summary">
+                        <div class="stat-card">
+                            <span class="stat-number">${data.skills_count}</span>
+                            <span class="stat-label">Total Skills</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-number">${data.core_skills_count}</span>
+                            <span class="stat-label">Core Skills</span>
+                        </div>
+                    </div>
+
+                    <div class="skills-cta mt-4">
+                        <div class="d-flex flex-wrap justify-content-center gap-3">
+                            <a href="/results-page" class="btn btn-primary btn-lg px-4 py-2 text-white border border-white border-opacity-25 shadow-sm">
+                                <i class="bi bi-briefcase me-2"></i>View Matched Jobs
+                            </a>
+                            <a href="/interview-page" class="btn btn-info btn-lg px-4 py-2 text-white border border-white border-opacity-25 shadow-sm">
+                                <i class="bi bi-chat-dots me-2"></i>Start Mock Interview
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Core Skills Section -->
+            <div class="skills-section">
+                <h3 class="section-title"><i class="bi bi-star-fill text-warning me-2"></i>Core Skills (${coreSkills.length})</h3>
+                <div class="row g-4">
+                    ${coreSkills.map(s => renderSkillCard(s)).join('')}
+                    ${coreSkills.length === 0 ? '<div class="col-12 text-muted">No core skills detected yet.</div>' : ''}
+                </div>
+            </div>
+
+            <!-- Supporting Skills Section -->
+            <div class="skills-section">
+                <h3 class="section-title"><i class="bi bi-lightning-charge-fill text-info me-2"></i>Supporting Skills (${otherSkills.length})</h3>
+                <div class="row g-4">
+                    ${otherSkills.map(s => renderSkillCard(s)).join('')}
+                    ${otherSkills.length === 0 ? '<div class="col-12 text-muted">No supporting skills detected yet.</div>' : ''}
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = html;
+
+    } catch (error) {
+        console.error("Failed to load skills profile:", error);
+        container.innerHTML = '<div class="alert alert-danger">Error loading skills profile. Please try again.</div>';
+    }
+}
+
+function renderSkillCard(skill) {
+    return `
+        <div class="col-md-6 col-lg-4">
+            <div class="skill-card">
+                <div class="skill-info">
+                    <span class="skill-badge ${skill.is_core ? 'badge-core' : 'badge-supporting'}">
+                        ${skill.is_core ? 'Core Competency' : 'Supporting'}
+                    </span>
+                    <h5 class="skill-name mb-1">${skill.name}</h5>
+                    <div class="d-flex align-items-center">
+                        <div class="progress-container">
+                            <div class="progress">
+                                <div class="progress-bar bg-primary" role="progressbar" style="width: ${skill.prob}%" aria-valuenow="${skill.prob}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
+                        <span class="skill-confidence small">${skill.prob}%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
