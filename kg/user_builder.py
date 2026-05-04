@@ -40,7 +40,13 @@ def build_user_node(G, cv_text):
     return USER_ID, user_prob, user_city, user_detail, user_raw2can_map, user_raw2can_best
 
 def build_strict_user_job_graph(G, user_node, topk=3):
-    """Build a focused subgraph containing user, top-k jobs, and their attributes."""
+    """Build a focused subgraph containing only essential nodes:
+    - User node
+    - Top-k matching jobs
+    - Top skills for user and jobs
+    - Location and Company
+    - Job-to-job similarity relationships
+    """
     keep = {user_node}
 
     # Get top-k jobs
@@ -56,30 +62,49 @@ def build_strict_user_job_graph(G, user_node, topk=3):
 
     keep.update(jobs)
 
-    # Add user's attributes
-    for _, v, d in G.edges(user_node, data=True):
-        if d.get("rel") in ["HAS_SKILL", "LOCATED_IN"]:
-            keep.add(v)
+    # Add ONLY top skills for user (by probability) - limit to top 5
+    user_skills = [
+        (v, d.get("prob", 0))
+        for _, v, d in G.edges(user_node, data=True)
+        if d.get("rel") == "HAS_SKILL"
+    ]
+    user_skills = sorted(user_skills, key=lambda x: x[1], reverse=True)[:5]
+    keep.update([v for v, _ in user_skills])
 
-    # Add job attributes
+    # Add location for user
+    user_locs = [
+        v for _, v, d in G.edges(user_node, data=True)
+        if d.get("rel") == "LOCATED_IN"
+    ]
+    keep.update(user_locs)
+
+    # Add essential job attributes (skip buckets and role_raw)
     for j in jobs:
-        for _, v, d in G.edges(j, data=True):
-            if d.get("rel") in [
-                "REQUIRES_SKILL",
-                "LOCATED_IN",
-                "HAS_SALARY_BUCKET",
-                "REQUIRES_EXP_BUCKET",
-                "HAS_ROLE_CANONICAL",
-                "POSTED_BY"
-            ]:
+        job_edges = list(G.edges(j, data=True))
+        
+        # Add top 5 skills for each job
+        job_skills = [
+            (v, d.get("prob", 0))
+            for _, v, d in job_edges
+            if d.get("rel") == "REQUIRES_SKILL"
+        ]
+        job_skills = sorted(job_skills, key=lambda x: x[1], reverse=True)[:5]
+        keep.update([v for v, _ in job_skills])
+        
+        # Add location and company
+        for _, v, d in job_edges:
+            if d.get("rel") in ["LOCATED_IN", "POSTED_BY"]:
                 keep.add(v)
 
     # Add SIMILAR_TO relationships between jobs
     for i, j1 in enumerate(jobs):
         for j2 in jobs[i+1:]:
-            if G.has_edge(j1, j2):
-                pass  # Already included in subgraph edges
-            elif G.has_edge(j2, j1):
-                pass  # Already included in subgraph edges
+            # Check both directions for SIMILAR_TO edge
+            if G.has_edge(j1, j2) and G.edges[j1, j2].get("rel") == "SIMILAR_TO":
+                keep.add(j1)
+                keep.add(j2)
+            elif G.has_edge(j2, j1) and G.edges[j2, j1].get("rel") == "SIMILAR_TO":
+                keep.add(j1)
+                keep.add(j2)
 
     return G.subgraph(keep).copy()

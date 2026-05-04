@@ -1,171 +1,142 @@
 {
     "kanban": {
-        "applied": [],
-        "interview": [],
-        "offer": [],
         "saved": [
             {
-                "id": "kb_20260501124407",
+                "id": "kb_20260418025048",
                 "title": "AI",
                 "company": "tp",
                 "loc": "hcm",
-                "date": "May 01, 2026",
-                "job_id": null,
-                "url": "https://www.messenger.com/e2ee/t/1421613532923471"
-            },
-            {
-                "id": "kb_20260501124425",
-                "title": "AI",
-                "company": "tp",
-                "loc": "hcm",
-                "date": "May 01, 2026",
-                "job_id": null,
-                "url": ""
-            },
-            {
-                "id": "kb_20260501124532",
-                "title": "Giảng Viên Thiết Kế Đồ Họa",
-                "company": "Trường Đại học CMC",
-                "loc": "Ha Noi",
-                "date": "May 01, 2026",
-                "job_id": "job::job_1334472_96793e89",
-                "url": "https://www.topcv.vn/viec-lam/giang-vien-thiet-ke-do-hoa/1334472.html"
-            },
-            {
-                "id": "kb_20260501124633",
-                "title": "Giảng Viên Thiết Kế Đồ Họa",
-                "company": "Trường Đại học CMC",
-                "loc": "Ha Noi",
-                "date": "May 01, 2026",
-                "job_id": "job::job_1334472_96793e89",
-                "url": "https://www.topcv.vn/viec-lam/giang-vien-thiet-ke-do-hoa/1334472.html"
+                "date": "Apr 18, 2026"
             }
-        ]
+        ],
+        "applied": [],
+        "interview": [],
+        "offer": []
     },
     "activity": [
         {
             "type": "scan",
             "title": "CV Analyzed",
-            "subtitle": "Extracted 11 skills from cv_3.pdf",
-            "time": "12:45 PM, May 01",
+            "subtitle": "Extracted 14 skills from nguyen-thi-ngoc cv.pdf",
+            "time": "12:48 PM, May 01",
             "icon": "bi-file-earmark-pdf",
             "color": "info"
         },
         {
             "type": "scan",
             "title": "CV Analyzed",
-            "subtitle": "Extracted 11 skills from cv_1.pdf",
-            "time": "11:11 AM, May 01",
+            "subtitle": "Extracted 11 skills from cv mau.pdf",
+            "time": "09:45 AM, May 01",
+            "icon": "bi-file-earmark-pdf",
+            "color": "info"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "09:42 AM, May 01",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "09:42 AM, May 01",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "09:42 AM, May 01",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "09:42 AM, May 01",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
+        },
+        {
+            "type": "scan",
+            "title": "CV Analyzed",
+            "subtitle": "Extracted 16 skills from NGUYEN-DINH-QUAN-CV.pdf",
+            "time": "09:40 AM, May 01",
             "icon": "bi-file-earmark-pdf",
             "color": "info"
         },
         {
             "type": "scan",
             "title": "CV Analyzed",
-            "subtitle": "Extracted 11 skills from cv_1.pdf",
-            "time": "11:02 AM, May 01",
+            "subtitle": "Extracted 8 skills from cv ar.pdf",
+            "time": "09:28 AM, May 01",
             "icon": "bi-file-earmark-pdf",
             "color": "info"
         },
         {
             "type": "scan",
             "title": "CV Analyzed",
-            "subtitle": "Extracted 11 skills from cv_3.pdf",
-            "time": "10:51 AM, May 01",
+            "subtitle": "Extracted 21 skills from nguyen-thi-ngoc cv.pdf",
+            "time": "09:27 AM, May 01",
             "icon": "bi-file-earmark-pdf",
             "color": "info"
         },
         {
             "type": "scan",
             "title": "CV Analyzed",
-            "subtitle": "Extracted 11 skills from cv_3.pdf",
-            "time": "10:19 AM, May 01",
+            "subtitle": "Extracted 21 skills from nguyen-thi-ngoc cv.pdf",
+            "time": "09:42 PM, Apr 30",
             "icon": "bi-file-earmark-pdf",
             "color": "info"
         },
         {
             "type": "scan",
             "title": "CV Analyzed",
-            "subtitle": "Extracted 12 skills from cv_4.pdf",
-            "time": "10:16 AM, May 01",
+            "subtitle": "Extracted 21 skills from nguyen-thi-ngoc cv.pdf",
+            "time": "09:36 PM, Apr 30",
             "icon": "bi-file-earmark-pdf",
             "color": "info"
         },
         {
             "type": "scan",
             "title": "CV Analyzed",
-            "subtitle": "Extracted 11 skills from cv_3.pdf",
-            "time": "10:12 AM, May 01",
+            "subtitle": "Extracted 21 skills from nguyen-thi-ngoc cv.pdf",
+            "time": "04:20 PM, Apr 30",
             "icon": "bi-file-earmark-pdf",
             "color": "info"
         },
         {
             "type": "scan",
             "title": "CV Analyzed",
-            "subtitle": "Extracted 11 skills from cv_3.pdf",
-            "time": "03:09 AM, May 01",
+            "subtitle": "Extracted 21 skills from nguyen-thi-ngoc cv.pdf",
+            "time": "04:16 PM, Apr 30",
             "icon": "bi-file-earmark-pdf",
             "color": "info"
         },
         {
             "type": "scan",
             "title": "CV Analyzed",
-            "subtitle": "Extracted 11 skills from cv_1.pdf",
-            "time": "02:55 AM, May 01",
+            "subtitle": "Extracted 21 skills from nguyen-thi-ngocCV.pdf",
+            "time": "04:04 PM, Apr 30",
             "icon": "bi-file-earmark-pdf",
             "color": "info"
         },
         {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 11 skills from cv_1.pdf",
-            "time": "02:51 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 12 skills from cv_4.pdf",
-            "time": "02:50 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 11 skills from cv_3.pdf",
-            "time": "02:45 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 4 skills from cv_4.pdf",
-            "time": "02:21 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 5 skills from cv_3.pdf",
-            "time": "02:21 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
-        },
-        {
-            "type": "scan",
-            "title": "CV Analyzed",
-            "subtitle": "Extracted 4 skills from cv_4.pdf",
-            "time": "02:17 AM, May 01",
-            "icon": "bi-file-earmark-pdf",
-            "color": "info"
+            "type": "match",
+            "title": "Global Search",
+            "subtitle": "Found 500 jobs matching ''",
+            "time": "11:04 PM, Apr 27",
+            "icon": "bi-lightning-charge",
+            "color": "danger"
         }
     ],
     "stats": {
-        "scans": 48,
-        "matches": 54
+        "scans": 34,
+        "matches": 16
     }
 }
