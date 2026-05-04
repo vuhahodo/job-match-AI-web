@@ -2249,12 +2249,14 @@ async function loadEnhancedSkillsProfile() {
 
         if (!data.active) {
             container.innerHTML = `
-                <div class="empty-state">
-                    <i class="bi bi-cloud-upload empty-state-icon"></i>
-                    <h2 class="empty-state-title">No Skills Profile Found</h2>
-                    <p class="empty-state-text">Please upload and analyze your CV to see your detailed skills profile.</p>
-                    <a href="/upload_page" class="cta-button btn-primary">
-                        <i class="bi bi-upload"></i> Upload CV Now
+                <div class="sp-empty sp-fade-in">
+                    <div class="sp-empty-icon">
+                        <i class="bi bi-cloud-arrow-up"></i>
+                    </div>
+                    <h2 class="sp-empty-title">No Skills Profile Yet</h2>
+                    <p class="sp-empty-text">Upload and analyze your CV to unlock your personalized skills profile with AI-powered insights.</p>
+                    <a href="/upload_page" class="sp-empty-btn">
+                        <i class="bi bi-upload"></i> Upload Your CV
                     </a>
                 </div>
             `;
@@ -2264,87 +2266,207 @@ async function loadEnhancedSkillsProfile() {
         const skills = data.detailed_skills || [];
         const coreSkills = skills.filter(s => s.is_core);
         const otherSkills = skills.filter(s => !s.is_core);
+        const avgProb = skills.length > 0 ? Math.round(skills.reduce((s, sk) => s + sk.prob, 0) / skills.length) : 0;
+
+        // Confidence distribution
+        const highConf = skills.filter(s => s.prob >= 70).length;
+        const medConf = skills.filter(s => s.prob >= 40 && s.prob < 70).length;
+        const lowConf = skills.filter(s => s.prob < 40).length;
+        const total = skills.length || 1;
+
+        // Growth suggestions
+        const growthSuggestions = _spGenerateGrowth(skills, data.role);
+
+        function _spRadial(prob, type) {
+            const r = 18, circ = 2 * Math.PI * r;
+            const offset = circ - (prob / 100) * circ;
+            const gradId = type === 'core' ? 'gradCore' : 'gradSupport';
+            const barClass = type === 'core' ? 'sp-radial-bar-core' : 'sp-radial-bar-support';
+            return `
+                <div class="sp-radial">
+                    <svg viewBox="0 0 44 44">
+                        <circle class="sp-radial-track" cx="22" cy="22" r="${r}"/>
+                        <circle class="${barClass} sp-radial-bar" cx="22" cy="22" r="${r}"
+                            stroke-dasharray="${circ}" stroke-dashoffset="${offset}"
+                            style="stroke: url(#${gradId})"/>
+                    </svg>
+                    <span class="sp-radial-value">${Math.round(prob)}%</span>
+                </div>`;
+        }
+
+        function _spCard(skill, type, idx) {
+            const tagClass = type === 'core' ? 'sp-tag-core' : 'sp-tag-support';
+            const tagText = type === 'core' ? '★ Core' : '◆ Support';
+            const cardClass = type === 'core' ? 'sp-card-core' : 'sp-card-support';
+            const progressClass = type === 'core' ? 'sp-progress-core' : 'sp-progress-support';
+            return `
+                <div class="sp-skill-card ${cardClass} sp-fade-in" style="animation-delay: ${idx * 0.05}s">
+                    ${_spRadial(skill.prob, type)}
+                    <div class="sp-skill-body">
+                        <div class="sp-skill-name">${escapeHtml(skill.name)}</div>
+                        <span class="sp-skill-tag ${tagClass}">${tagText}</span>
+                        <div class="sp-progress-track">
+                            <div class="sp-progress-fill ${progressClass}" style="width: ${skill.prob}%"></div>
+                        </div>
+                    </div>
+                </div>`;
+        }
 
         let html = `
-            <div class="skills-hero">
-                <div class="skills-hero-content text-center">
-                    <span class="badge bg-primary bg-opacity-75 mb-3 px-3 py-2 rounded-pill text-white shadow-sm border border-white border-opacity-25">AI Professional Profile</span>
-                    <h1 class="display-4 fw-bold mb-2">${data.role}</h1>
-                    <div class="d-flex justify-content-center gap-3 mb-4">
-                        <span class="small"><i class="bi bi-geo-alt me-1"></i>${data.city}</span>
-                        <span class="small"><i class="bi bi-envelope me-1"></i>${data.email}</span>
+            <!-- Hero -->
+            <div class="sp-hero sp-fade-in">
+                <div class="sp-hero-content">
+                    <span class="sp-hero-badge"><i class="bi bi-cpu"></i> AI Professional Profile</span>
+                    <h1 class="sp-hero-title">${escapeHtml(data.role || 'Professional')}</h1>
+                    <div class="sp-hero-meta">
+                        ${data.city ? `<span class="sp-hero-meta-item"><i class="bi bi-geo-alt-fill"></i>${escapeHtml(data.city)}</span>` : ''}
+                        ${data.email ? `<span class="sp-hero-meta-item"><i class="bi bi-envelope-fill"></i>${escapeHtml(data.email)}</span>` : ''}
+                        ${data.filename ? `<span class="sp-hero-meta-item"><i class="bi bi-file-earmark-pdf-fill"></i>${escapeHtml(data.filename)}</span>` : ''}
                     </div>
-                    
-                    <div class="profile-summary">
-                        <div class="stat-card">
-                            <span class="stat-number">${data.skills_count}</span>
-                            <span class="stat-label">Total Skills</span>
+                    <div class="sp-stats-row">
+                        <div class="sp-stat-card">
+                            <div class="sp-stat-value">${data.skills_count}</div>
+                            <div class="sp-stat-label">Total Skills</div>
                         </div>
-                        <div class="stat-card">
-                            <span class="stat-number">${data.core_skills_count}</span>
-                            <span class="stat-label">Core Skills</span>
+                        <div class="sp-stat-card">
+                            <div class="sp-stat-value">${data.core_skills_count}</div>
+                            <div class="sp-stat-label">Core Skills</div>
                         </div>
-                    </div>
-
-                    <div class="skills-cta mt-4">
-                        <div class="d-flex flex-wrap justify-content-center gap-3">
-                            <a href="/results-page" class="btn btn-primary btn-lg px-4 py-2 text-white border border-white border-opacity-25 shadow-sm">
-                                <i class="bi bi-briefcase me-2"></i>View Matched Jobs
-                            </a>
-                            <a href="/interview-page" class="btn btn-info btn-lg px-4 py-2 text-white border border-white border-opacity-25 shadow-sm">
-                                <i class="bi bi-chat-dots me-2"></i>Start Mock Interview
-                            </a>
+                        <div class="sp-stat-card">
+                            <div class="sp-stat-value">${avgProb}%</div>
+                            <div class="sp-stat-label">Avg. Confidence</div>
+                        </div>
+                        <div class="sp-stat-card">
+                            <div class="sp-stat-value">${otherSkills.length}</div>
+                            <div class="sp-stat-label">Supporting</div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Core Skills Section -->
-            <div class="skills-section">
-                <h3 class="section-title"><i class="bi bi-star-fill text-warning me-2"></i>Core Skills (${coreSkills.length})</h3>
-                <div class="row g-4">
-                    ${coreSkills.map(s => renderSkillCard(s)).join('')}
-                    ${coreSkills.length === 0 ? '<div class="col-12 text-muted">No core skills detected yet.</div>' : ''}
+            <!-- Actions -->
+            <div class="sp-actions sp-fade-in" style="animation-delay: 0.1s">
+                <a href="/results-page" class="sp-action-btn sp-action-primary">
+                    <i class="bi bi-briefcase-fill"></i> View Matched Jobs
+                </a>
+                <a href="/interview-page" class="sp-action-btn sp-action-success">
+                    <i class="bi bi-chat-dots-fill"></i> Mock Interview
+                </a>
+                <a href="/upload_page" class="sp-action-btn sp-action-outline">
+                    <i class="bi bi-arrow-repeat"></i> Re-upload CV
+                </a>
+            </div>
+
+            <!-- Confidence Breakdown -->
+            <div class="sp-confidence-bar-wrap sp-fade-in" style="animation-delay: 0.15s">
+                <div class="sp-conf-header">
+                    <span class="sp-conf-title"><i class="bi bi-bar-chart-fill me-2"></i>Confidence Distribution</span>
+                    <span class="sp-conf-avg">Avg: ${avgProb}%</span>
+                </div>
+                <div class="sp-conf-breakdown">
+                    <div class="sp-conf-seg" style="width: ${(highConf / total) * 100}%; background: linear-gradient(90deg, #10b981, #059669);"></div>
+                    <div class="sp-conf-seg" style="width: ${(medConf / total) * 100}%; background: linear-gradient(90deg, #f59e0b, #d97706);"></div>
+                    <div class="sp-conf-seg" style="width: ${(lowConf / total) * 100}%; background: linear-gradient(90deg, #ef4444, #dc2626);"></div>
+                </div>
+                <div class="sp-conf-legend">
+                    <span class="sp-conf-legend-item"><span class="sp-conf-dot" style="background:#10b981"></span> High ≥70% (${highConf})</span>
+                    <span class="sp-conf-legend-item"><span class="sp-conf-dot" style="background:#f59e0b"></span> Medium 40-69% (${medConf})</span>
+                    <span class="sp-conf-legend-item"><span class="sp-conf-dot" style="background:#ef4444"></span> Low <40% (${lowConf})</span>
                 </div>
             </div>
 
-            <!-- Supporting Skills Section -->
-            <div class="skills-section">
-                <h3 class="section-title"><i class="bi bi-lightning-charge-fill text-info me-2"></i>Supporting Skills (${otherSkills.length})</h3>
-                <div class="row g-4">
-                    ${otherSkills.map(s => renderSkillCard(s)).join('')}
-                    ${otherSkills.length === 0 ? '<div class="col-12 text-muted">No supporting skills detected yet.</div>' : ''}
+            <!-- Core Skills -->
+            <div class="sp-section sp-fade-in" style="animation-delay: 0.2s">
+                <div class="sp-section-header">
+                    <div class="sp-section-icon sp-section-icon-core"><i class="bi bi-star-fill"></i></div>
+                    <h3 class="sp-section-title">Core Skills</h3>
+                    <span class="sp-section-count">${coreSkills.length}</span>
+                </div>
+                <div class="sp-skill-grid">
+                    ${coreSkills.length > 0
+                        ? coreSkills.map((s, i) => _spCard(s, 'core', i)).join('')
+                        : '<p style="color: var(--text-muted); padding: 1rem;">No core skills detected yet.</p>'
+                    }
                 </div>
             </div>
+
+            <!-- Supporting Skills -->
+            <div class="sp-section sp-fade-in" style="animation-delay: 0.25s">
+                <div class="sp-section-header">
+                    <div class="sp-section-icon sp-section-icon-support"><i class="bi bi-lightning-charge-fill"></i></div>
+                    <h3 class="sp-section-title">Supporting Skills</h3>
+                    <span class="sp-section-count">${otherSkills.length}</span>
+                </div>
+                <div class="sp-skill-grid">
+                    ${otherSkills.length > 0
+                        ? otherSkills.map((s, i) => _spCard(s, 'support', i)).join('')
+                        : '<p style="color: var(--text-muted); padding: 1rem;">No supporting skills detected yet.</p>'
+                    }
+                </div>
+            </div>
+
+            <!-- Growth Suggestions -->
+            ${growthSuggestions.length > 0 ? `
+            <div class="sp-section sp-fade-in" style="animation-delay: 0.3s">
+                <div class="sp-section-header">
+                    <div class="sp-section-icon sp-section-icon-growth"><i class="bi bi-graph-up-arrow"></i></div>
+                    <h3 class="sp-section-title">Growth Suggestions</h3>
+                    <span class="sp-section-count">${growthSuggestions.length}</span>
+                </div>
+                <div class="sp-skill-grid">
+                    ${growthSuggestions.map((s, i) => `
+                        <div class="sp-growth-card sp-fade-in" style="animation-delay: ${0.3 + i * 0.05}s">
+                            <div class="sp-growth-icon"><i class="bi bi-plus-lg"></i></div>
+                            <div>
+                                <div class="sp-growth-name">${escapeHtml(s)}</div>
+                                <div class="sp-growth-desc">Recommended for your role</div>
+                            </div>
+                            <span class="sp-growth-badge">Suggested</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            ` : ''}
         `;
 
         container.innerHTML = html;
 
     } catch (error) {
         console.error("Failed to load skills profile:", error);
-        container.innerHTML = '<div class="alert alert-danger">Error loading skills profile. Please try again.</div>';
+        container.innerHTML = `
+            <div class="sp-empty sp-fade-in">
+                <div class="sp-empty-icon" style="background: linear-gradient(135deg, rgba(239,68,68,0.1), rgba(220,38,38,0.1));">
+                    <i class="bi bi-exclamation-triangle" style="color: #ef4444;"></i>
+                </div>
+                <h2 class="sp-empty-title">Failed to Load</h2>
+                <p class="sp-empty-text">There was an error loading your skills profile. Please try refreshing the page.</p>
+                <button class="sp-empty-btn" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> Retry
+                </button>
+            </div>`;
     }
 }
 
-function renderSkillCard(skill) {
-    return `
-        <div class="col-md-6 col-lg-4">
-            <div class="skill-card">
-                <div class="skill-info">
-                    <span class="skill-badge ${skill.is_core ? 'badge-core' : 'badge-supporting'}">
-                        ${skill.is_core ? 'Core Competency' : 'Supporting'}
-                    </span>
-                    <h5 class="skill-name mb-1">${skill.name}</h5>
-                    <div class="d-flex align-items-center">
-                        <div class="progress-container">
-                            <div class="progress">
-                                <div class="progress-bar bg-primary" role="progressbar" style="width: ${skill.prob}%" aria-valuenow="${skill.prob}" aria-valuemin="0" aria-valuemax="100"></div>
-                            </div>
-                        </div>
-                        <span class="skill-confidence small">${skill.prob}%</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
+function _spGenerateGrowth(currentSkills, role) {
+    const currentNames = new Set(currentSkills.map(s => s.name.toLowerCase()));
+    const normalizedRole = (role || '').toLowerCase();
+    let suggestions = [];
+
+    if (normalizedRole.includes('sales') || normalizedRole.includes('bán hàng') || normalizedRole.includes('business development')) {
+        suggestions = ['CRM', 'Lead Generation', 'Negotiation', 'Customer Relationship Management', 'Sales Forecasting', 'Communication', 'Market Research', 'Presentation Skills'];
+    } else if (normalizedRole.includes('account') || normalizedRole.includes('finance') || normalizedRole.includes('tài chính') || normalizedRole.includes('kế toán')) {
+        suggestions = ['Excel', 'Financial Reporting', 'Budgeting', 'Accounting Software', 'Compliance', 'Audit', 'Financial Analysis', 'Cost Analysis'];
+    } else if (normalizedRole.includes('developer') || normalizedRole.includes('engineer') || normalizedRole.includes('programmer') || normalizedRole.includes('devops') || normalizedRole.includes('cntt')) {
+        suggestions = ['Cloud Computing', 'Docker', 'Kubernetes', 'CI/CD', 'API Development', 'Microservices', 'System Design', 'Machine Learning'];
+    } else if (normalizedRole.includes('marketing') || normalizedRole.includes('thị trường')) {
+        suggestions = ['Digital Marketing', 'SEO', 'Content Marketing', 'Social Media Marketing', 'Analytics', 'Google Analytics', 'A/B Testing', 'Brand Strategy'];
+    } else if (normalizedRole.includes('hr') || normalizedRole.includes('nhân sự')) {
+        suggestions = ['Recruitment', 'Employee Relations', 'Performance Management', 'Payroll', 'Training & Development', 'HRIS', 'Labor Laws', 'Conflict Resolution'];
+    } else if (normalizedRole.includes('manager') || normalizedRole.includes('lead') || normalizedRole.includes('director') || normalizedRole.includes('quản lý')) {
+        suggestions = ['Project Management', 'Team Leadership', 'Strategic Planning', 'Decision Making', 'Mentoring', 'Budget Management', 'Risk Management', 'Agile Methodology'];
+    } else {
+        suggestions = ['Communication', 'Problem Solving', 'Project Management', 'Excel', 'Time Management', 'Leadership', 'Teamwork', 'Data Analysis'];
+    }
+
+    return suggestions.filter(s => !currentNames.has(s.toLowerCase())).slice(0, 6);
 }
