@@ -21,7 +21,14 @@ def explain_user_job(user_prob, job_prob, user_raw2can=None, job_raw2can=None):
         den += pj * w
 
         if pu > 0:
-            contrib = min(pu, pj) * w
+            # Use a smoother contribution function (square root of ratio)
+            # This rewards partial matches more than linear min
+            if pu < pj:
+                rel_sim = (pu / pj) ** 0.5
+                contrib = pj * rel_sim * w
+            else:
+                contrib = pj * w
+
             num += contrib
             matched.append({
                 "skill": sk,

@@ -48,12 +48,12 @@ def user_job_score(user_prob, user_city, user_detail, job_node, job_info,
         s_sal = 0.0
 
     W = {
-        'skill': 0.35,
-        'text': 0.25,
+        'skill': 0.40,
+        'role': 0.20,
+        'exp': 0.15,
         'location': 0.15,
-        'role': 0.10,
-        'exp': 0.10,
-        'sal': 0.05,
+        'text': 0.10,
+        'sal': 0.00, # Handled as extra or ignored for now
     }
 
     score = (
@@ -72,8 +72,8 @@ def user_job_score(user_prob, user_city, user_detail, job_node, job_info,
     if cv_domain != "general" and job_domain != "general":
         # Check for cross-domain mismatch
         if cv_domain != job_domain:
-            # Heavy penalty for cross-domain noise
-            score *= 0.25
+            # Moderate penalty for cross-domain noise (allowing for career shifts)
+            score *= 0.60
 
     explain = {
         "components": {

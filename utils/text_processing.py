@@ -113,12 +113,14 @@ def location_match_score(user_city, user_detail, job_city, job_detail):
     ud = set(norm_text(user_detail).split()) if user_detail else set()
     jd = set(norm_text(job_detail).split()) if job_detail else set()
     if not ud or not jd:
-        return 0.8, {"city_match": 1, "detail_match": 0}
+        # Base score for city match only
+        return 0.7, {"city_match": 1, "detail_match": 0}
 
     inter = len(ud & jd)
     union = len(ud | jd)
     jacc = inter / union if union else 0.0
-    score = 0.8 + 0.2*jacc
+    # Weighted combination: 0.7 base + up to 0.3 from district match
+    score = 0.7 + 0.3*jacc
     return float(round(score, 3)), {"city_match": 1, "detail_match": round(jacc,3)}
 
 # ROLE PARSING

@@ -151,10 +151,16 @@ def weighted_skill_overlap_prob(user_prob: dict, job_prob: dict):
     for s, pj in job_prob.items():
         w = 2.0 if s in CORE_SKILLS_CANON else 1.0
         pu = float(user_prob.get(s, 0.0))
-        num += min(pu, pj) * w
+        
+        if pu >= pj:
+            c = pj * w
+        else:
+            c = pj * (pu / pj)**0.5 * w if pu > 0 else 0.0
+            
+        num += c
         den += pj * w
         if pu > 0:
-            contrib.append((s, round(min(pu, pj) * w, 4), round(pu,3), round(pj,3), w))
+            contrib.append((s, round(c, 4), round(pu,3), round(pj,3), w))
 
     score = (num / den) if den > 0 else 0.0
     contrib.sort(key=lambda x: x[1], reverse=True)

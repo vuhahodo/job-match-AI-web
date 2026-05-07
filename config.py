@@ -136,7 +136,10 @@ SKILL_LEXICON = {}
 for domain, skills in DOMAIN_SKILL_LEXICON.items():
     SKILL_LEXICON.update(skills)
 
-CORE_SKILLS_CANON = {"Excel", "Tax", "VAT", "Invoice", "Financial Reporting", "Audit", "SAP", "MISA", "AR/AP", "Bookkeeping"}
+CORE_SKILLS_CANON = {
+    "Excel", "Tax", "VAT", "Invoice", "Financial Reporting", "Audit", "SAP", "MISA", "AR/AP", "Bookkeeping",
+    "Python", "Java", "JavaScript", "SQL", "React", "NodeJS", "Project Management", "Data Science", "SEO", "Graphic Design"
+}
 
 # LOCATION
 VN_CITY_ALIASES = {
@@ -177,19 +180,27 @@ ROLE_PATTERNS = [
     (r"\bke toan\b|\baccountant\b", "Accountant"),
     (r"\bkiem toan\b|\baudit\b", "Auditor"),
     (r"\bfinance\b|\bfinancial\b", "Finance"),
-    (r"\bhr\b|\bnhan su\b", "HR"),
-    (r"\bsales\b|\bkinh doanh\b", "Sales"),
-    (r"\bthiet ke do hoa\b|\bgraphic designer\b", "Graphic Designer"),
-    (r"\bdata\b", "Data"),
-    (r"\bdeveloper\b|\bengineer\b|\bsoftware\b", "Software Engineer"),
+    (r"\bhr\b|\bnhan su\b|\btuyen dung\b", "HR"),
+    (r"\bsales\b|\bkinh doanh\b|\bban hang\b", "Sales"),
+    (r"\bmarketing\b|\bcontent\b", "Marketing"),
+    (r"\bthiet ke do hoa\b|\bgraphic designer\b|\bui/ux\b", "Designer"),
+    (r"\bdata scientist\b|\bdata analyst\b|\bdata engineer\b", "Data Specialist"),
+    (r"\bbackend\b|\bfrontend\b|\bfullstack\b|\bweb developer\b", "Software Engineer"),
+    (r"\bdeveloper\b|\bengineer\b|\bsoftware\b|\blap trinh vien\b", "Software Engineer"),
+    (r"\bquan ly du an\b|\bproject manager\b", "Project Manager"),
 ]
 
 # ROLE SIMILARITY
 ROLE_SIM = {
-    ("Tax Accountant", "General Accountant"): 0.70,
-    ("Internal Accountant", "General Accountant"): 0.60,
-    ("Accountant", "General Accountant"): 0.55,
-    ("Accountant", "Tax Accountant"): 0.45,
+    ("Tax Accountant", "General Accountant"): 0.75,
+    ("Internal Accountant", "General Accountant"): 0.70,
+    ("Accountant", "General Accountant"): 0.65,
+    ("Accountant", "Tax Accountant"): 0.60,
+    ("Software Engineer", "Data Specialist"): 0.50,
+    ("Software Engineer", "Project Manager"): 0.40,
+    ("Marketing", "Sales"): 0.45,
+    ("Designer", "Marketing"): 0.35,
+    ("Finance", "Accountant"): 0.55,
 }
 
 # EXPERIENCE SIMILARITY
