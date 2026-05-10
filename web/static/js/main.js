@@ -7,13 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupUploadForm();
     setupSearch();
     checkSystemStatus(); // New initialization check
-    
-    // Check if we are on dashboard page
-    if (document.getElementById('kanban-board')) {
-        loadDashboardData();
-    } else {
-        loadDashboardMockData();
-    }
+    loadDashboardMockData();
 
     // Check local storage for auth state
     if (localStorage.getItem('isLoggedIn') === 'true') {
@@ -25,16 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Init CV
     updateCV();
-
-    // Global Track Button Listener (Event Delegation)
-    document.addEventListener('click', async e => {
-        const trackBtn = e.target.closest('.track-btn');
-        if (trackBtn) {
-            e.preventDefault();
-            const { id, title, company, loc, url } = trackBtn.dataset;
-            trackJob(id, title, company, loc, url);
-        }
-    });
 });
 
 /* --- Theme Logic --- */
@@ -101,147 +85,61 @@ function updateCV() {
 // Inner Tabs Removed - now top level pages
 
 /* --- Authentication Mock --- */
-async function checkAuthStatus() {
-    try {
-        const response = await fetch('/api/auth-status');
-        const data = await response.json();
-        setAuthState(data.logged_in, data.user);
-    } catch (e) {
-        console.error("Auth status check failed", e);
-        setAuthState(false);
-    }
+function handleLogin(e) {
+    e.preventDefault();
+    processAuth(e.target, 'Welcome back!', 'You have successfully logged in.');
 }
 
-// Call check on load
-document.addEventListener('DOMContentLoaded', checkAuthStatus);
-
-async function handleLogin(e) {
+function handleRegister(e) {
     e.preventDefault();
-    const form = e.target;
+    processAuth(e.target, 'Account Created!', 'Your account has been created successfully.');
+}
+
+function processAuth(form, title, message) {
+    // Simulate API call
     const btn = form.querySelector('button[type="submit"]');
     const originalText = btn.innerHTML;
-    
-    // Convert FormData to JSON
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData.entries());
-
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-    btn.disabled = true;
 
-    try {
-        const response = await fetch('/api/login', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        });
-        
-        const result = await response.json();
-        if (response.ok) {
-            await checkAuthStatus();
-            closeAuthModals();
-            showToast('Welcome back!', result.message || 'Logged in successfully.', 'success');
-            setTimeout(() => { window.location.href = '/dashboard'; }, 1000);
-        } else {
-            showToast('Login Failed', result.error, 'danger');
+    setTimeout(() => {
+        setAuthState(true);
+        // Hide all auth modals
+        const loginModalEl = document.getElementById('loginModal');
+        const registerModalEl = document.getElementById('registerModal');
+
+        if (loginModalEl) {
+            const modal = bootstrap.Modal.getInstance(loginModalEl);
+            if (modal) modal.hide();
         }
-    } catch (e) {
-        showToast('Error', 'Connection failed', 'danger');
-    } finally {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    }
-}
-
-async function handleRegister(e) {
-    e.preventDefault();
-    const form = e.target;
-    const btn = form.querySelector('button[type="submit"]');
-    const originalText = btn.innerHTML;
-    
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData.entries());
-
-    // Basic validation
-    if (data.password !== data.confirm_password) {
-        showToast('Error', 'Passwords do not match', 'danger');
-        return;
-    }
-
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-    btn.disabled = true;
-
-    try {
-        const response = await fetch('/api/register', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        });
-        
-        const result = await response.json();
-        if (response.ok) {
-            await checkAuthStatus();
-            closeAuthModals();
-            showToast('Account Created!', result.message, 'success');
-            setTimeout(() => { window.location.href = '/dashboard'; }, 1000);
-        } else {
-            showToast('Registration Failed', result.error, 'danger');
+        if (registerModalEl) {
+            const modal = bootstrap.Modal.getInstance(registerModalEl);
+            if (modal) modal.hide();
         }
-    } catch (e) {
-        showToast('Error', 'Connection failed', 'danger');
-    } finally {
+
         btn.innerHTML = originalText;
-        btn.disabled = false;
-    }
+        showToast(title, message, 'success');
+        btn.innerHTML = originalText;
+        showToast(title, message, 'success');
+        window.location.href = '/dashboard';
+    }, 1000);
 }
 
-function closeAuthModals() {
-    const loginModalEl = document.getElementById('loginModal');
-    const registerModalEl = document.getElementById('registerModal');
-    if (loginModalEl) {
-        const m = bootstrap.Modal.getInstance(loginModalEl);
-        if (m) m.hide();
-    }
-    if (registerModalEl) {
-        const m = bootstrap.Modal.getInstance(registerModalEl);
-        if (m) m.hide();
-    }
-}
-
-async function logout() {
-    // Immediately update UI so user sees feedback
+function logout() {
     setAuthState(false);
-    showToast('Logging out', 'See you next time!', 'info');
-
-    try {
-        await fetch('/api/logout', { method: 'POST' });
-    } catch (e) {
-        console.error("Logout API call failed", e);
-    }
-    // Always redirect regardless of API result
-    window.location.href = '/';
+    window.location.href = '/upload_page'; // Redirect to upload
+    showToast('Logged out', 'See you next time!', 'info');
 }
 
-function setAuthState(isLoggedIn, user = null) {
+function setAuthState(isLoggedIn) {
     const authButtons = document.getElementById('authButtons');
     const userProfile = document.getElementById('userProfile');
 
-    if (!authButtons || !userProfile) return;
-
     if (isLoggedIn) {
+        localStorage.setItem('isLoggedIn', 'true');
         authButtons.classList.add('d-none');
         userProfile.classList.remove('d-none');
-        // If there's an element to show user's name:
-        const nameEl = userProfile.querySelector('.user-name-display');
-        const avatarEl = userProfile.querySelector('.user-avatar-display');
-        if (nameEl && user && user.name) {
-             nameEl.textContent = user.name;
-        }
-        if (avatarEl && user && user.name) {
-             // Lấy tối đa 2 chữ cái đầu làm avatar
-             const initials = user.name.trim().split(/\s+/).map(n => n[0]).join('').substring(0, 2).toUpperCase();
-             avatarEl.textContent = initials;
-        }
     } else {
+        localStorage.removeItem('isLoggedIn');
         authButtons.classList.remove('d-none');
         userProfile.classList.add('d-none');
     }
@@ -252,23 +150,23 @@ async function checkSystemStatus() {
     const statusMsg = document.createElement('div');
     statusMsg.id = 'system-status-msg';
     statusMsg.className = 'text-center small text-info mb-3';
-    
+
     const form = document.getElementById('uploadForm');
     if (form && uploadBtn) {
         form.insertBefore(statusMsg, uploadBtn.parentElement);
-        
+
         const check = async () => {
             try {
-                const res = await fetch('/api/cv-full');
+                const res = await fetch('/api/status');
                 const data = await res.json();
-                if (data.initializing) {
+                if (!data.ready) {
                     uploadBtn.disabled = true;
                     statusMsg.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Knowledge Graph is initializing... Please wait.';
                     setTimeout(check, 3000);
                 } else {
                     uploadBtn.disabled = false;
-                    statusMsg.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> System Ready';
-                    setTimeout(() => { if (statusMsg) statusMsg.remove(); }, 2000);
+                    statusMsg.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i>System Ready — ${data.jobs_loaded.toLocaleString()} jobs loaded`;
+                    setTimeout(() => { if (statusMsg) statusMsg.remove(); }, 3000);
                 }
             } catch (e) {
                 setTimeout(check, 5000);
@@ -290,34 +188,28 @@ const DEFAULT_KANBAN = {
 let KANBAN_DATA = JSON.parse(localStorage.getItem('kanbanData')) || DEFAULT_KANBAN;
 
 async function saveKanbanData() {
-    // Sync with server and local storage
-    localStorage.setItem('kanbanData', JSON.stringify(KANBAN_DATA));
+    // Sync with server
     try {
         await fetch('/api/kanban/update', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(KANBAN_DATA)
         });
     } catch (e) {
         console.error('Failed to sync kanban to server:', e);
+        // Fallback to local storage
+        localStorage.setItem('kanbanData', JSON.stringify(KANBAN_DATA));
     }
 }
 
 async function loadDashboardData() {
     try {
         const response = await fetch('/api/dashboard');
-        if (!response.ok) throw new Error('Server unreachable');
         const data = await response.json();
-        
-        // Always trust server data if we got a successful response
-        // This handles both logged-in users and guests (who now have session storage)
-        if (data.kanban) {
-            KANBAN_DATA = data.kanban;
-            localStorage.setItem('kanbanData', JSON.stringify(KANBAN_DATA));
-        }
-        
+
+        KANBAN_DATA = data.kanban || DEFAULT_KANBAN;
         const activities = data.activity || [];
-        const stats = data.stats || {scans: 0, matches: 0};
+        const stats = data.stats || { scans: 0, matches: 0 };
 
         renderAllColumns();
         setupDragAndDrop();
@@ -326,12 +218,8 @@ async function loadDashboardData() {
         renderRecentActivity(activities);
     } catch (e) {
         console.error('Failed to load dashboard data:', e);
-        // Fallback to local storage only on failure
-        KANBAN_DATA = JSON.parse(localStorage.getItem('kanbanData')) || DEFAULT_KANBAN;
-        renderAllColumns();
-        setupDragAndDrop();
-        renderDashboardStats();
-        renderDashboardSkills();
+        // Fallback to mock/local
+        loadDashboardMockData();
     }
 }
 
@@ -341,23 +229,17 @@ function renderDashboardStats(realStats = null) {
     if (statEl) statEl.textContent = totalApps;
 
     // Update interview rate
-    const interviewCount = KANBAN_DATA.interview.length;
-    const offerCount = KANBAN_DATA.offer.length;
-    const appliedCount = KANBAN_DATA.applied.length;
-    
-    const interviewRateCount = interviewCount + offerCount;
-    const totalWithApplied = appliedCount + interviewRateCount;
+    const interviewRateCount = KANBAN_DATA.interview.length + KANBAN_DATA.offer.length;
+    const totalWithApplied = KANBAN_DATA.applied.length + interviewRateCount;
     const rate = totalWithApplied > 0 ? Math.round((interviewRateCount / totalWithApplied) * 100) : 0;
 
-    const rateEl = document.getElementById('interview-rate-stat');
-    if (rateEl) rateEl.textContent = rate + '%';
+    const rateEls = document.querySelectorAll('.display-5');
+    if (rateEls[3]) rateEls[3].textContent = rate + '%';
 
     // Update real stats if provided
     if (realStats) {
-        const matchesEl = document.getElementById('total-matches-stat');
-        const scansEl = document.getElementById('cv-scanned-stat');
-        if (matchesEl) matchesEl.textContent = realStats.matches || 0;
-        if (scansEl) scansEl.textContent = realStats.scans || 0;
+        if (rateEls[0]) rateEls[0].textContent = realStats.matches || 0;
+        if (rateEls[1]) rateEls[1].textContent = realStats.scans || 0;
     }
 }
 
@@ -369,17 +251,11 @@ async function renderDashboardSkills() {
     try {
         const response = await fetch('/user-skills');
         const skills = await response.json();
-        const normalizedSkills = Array.isArray(skills) ? skills.map(s => ({
-            name: s.name,
-            probability: Number(s.probability || 0),
-            is_core: Boolean(s.is_core),
-            tag: s.tag || ''
-        })) : [];
 
-        if (normalizedSkills.length > 0) {
+        if (skills && skills.length > 0) {
             // Take top 5 skills and format them
             const colors = ['primary', 'info', 'warning', 'success', 'danger'];
-            const topSkills = normalizedSkills.slice(0, 5).map((s, i) => ({
+            const topSkills = skills.slice(0, 5).map((s, i) => ({
                 name: s.name,
                 level: Math.round(s.probability * 100),
                 color: colors[i % colors.length]
@@ -454,149 +330,92 @@ function renderKanbanColumn(key, colId) {
     if (!col) return;
 
     col.innerHTML = KANBAN_DATA[key].map(item => `
-        <div class="card border-0 shadow-sm mb-3 kanban-card draggable" 
-             draggable="true" 
-             data-id="${item.id}" 
-             data-origin="${key}"
-             ondblclick="${item.job_id ? `window.location.href='/job-detail/${item.job_id}'` : `viewAppDetails('${key}', '${item.id}')`}"
-             title="Double click to view details">
+        <div class="card border-0 shadow-sm mb-3 kanban-card draggable" draggable="true" data-id="${item.id}" data-origin="${key}">
             <div class="card-body p-3">
-                <div class="d-flex justify-content-between align-items-start mb-1">
-                    <h6 class="fw-bold mb-0 text-truncate" style="max-width: 80%;">
-                        ${item.job_id ? `<a href="/job-detail/${item.job_id}" class="text-decoration-none text-dark hover-primary">${item.title}</a>` : `<a href="javascript:void(0)" onclick="viewAppDetails('${key}', '${item.id}')" class="text-decoration-none text-dark hover-primary">${item.title}</a>`}
-                    </h6>
-                    <button class="btn btn-sm btn-link text-danger p-0 border-0" onclick="deleteKanbanItem('${key}', '${item.id}')" title="Remove">
-                        <i class="bi bi-trash small"></i>
-                    </button>
-                </div>
+                <h6 class="fw-bold mb-1 text-truncate">${item.title}</h6>
                 <div class="text-muted small mb-2">${item.company}</div>
                 <div class="d-flex justify-content-between align-items-center">
-                    <div class="d-flex gap-2 align-items-center">
-                        <span class="badge bg-light text-dark border"><i class="bi bi-geo-alt me-1"></i>${item.loc}</span>
-                        ${item.url ? `<a href="${item.url}" target="_blank" class="text-primary" title="Open Job Link"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}
-                    </div>
+                    <span class="badge bg-light text-dark border"><i class="bi bi-geo-alt me-1"></i>${item.loc}</span>
                     <small class="text-muted" style="font-size:0.7rem">${item.date}</small>
                 </div>
             </div>
         </div>
     `).join('');
 
+    // Update badge count if exists
     const badge = col.parentElement.querySelector('.badge');
     if (badge) badge.textContent = KANBAN_DATA[key].length;
-}
-
-async function deleteKanbanItem(col, id) {
-    if (!confirm('Are you sure you want to remove this from your tracker?')) return;
-    
-    try {
-        const response = await fetch(`/api/kanban/delete/${col}/${id}`, { method: 'DELETE' });
-        
-        // Nếu server xóa thành công HOẶC server không tìm thấy (do là dữ liệu mẫu cũ), 
-        // chúng ta vẫn xóa ở giao diện để người dùng không bị kẹt.
-        if (response.ok || response.status === 404) {
-            const index = KANBAN_DATA[col].findIndex(i => i.id === id);
-            if (index > -1) {
-                KANBAN_DATA[col].splice(index, 1);
-                localStorage.setItem('kanbanData', JSON.stringify(KANBAN_DATA));
-                renderAllColumns();
-                renderDashboardStats();
-                showToast('Removed', 'Application removed from tracker', 'info');
-            }
-        } else {
-            throw new Error('Server error');
-        }
-    } catch (e) {
-        console.error('Delete failed:', e);
-        showToast('Error', 'Failed to delete item from server', 'danger');
-    }
 }
 
 /* --- Drag & Drop Logic --- */
 let draggedItem = null;
 
 function setupDragAndDrop() {
-    const board = document.getElementById('kanban-board');
-    if (!board || board.dataset.dragInitialized === "true") return;
+    const minHeight = "200px"; // Ensure empty cols are droppable
+    const columns = document.querySelectorAll('.kanban-column');
 
-    // Use event delegation on the board container
-    board.addEventListener('dragstart', e => {
-        const draggable = e.target.closest('.draggable');
-        if (draggable) {
-            draggedItem = draggable;
-            draggable.classList.add('opacity-50');
-            // Store origin column for easier lookup
-            e.dataTransfer.setData('text/plain', draggable.dataset.id);
-        }
-    });
+    columns.forEach(col => {
+        col.style.minHeight = minHeight;
 
-    board.addEventListener('dragend', e => {
-        const draggable = e.target.closest('.draggable');
-        if (draggable) {
-            draggedItem = null;
-            draggable.classList.remove('opacity-50');
-            // Clean up hover states
-            document.querySelectorAll('.kanban-column').forEach(c => c.style.backgroundColor = '');
-        }
-    });
-
-    board.addEventListener('dragover', e => {
-        const col = e.target.closest('.kanban-column');
-        if (col) {
+        col.addEventListener('dragover', e => {
             e.preventDefault();
-            // Subtly highlight the column
             col.style.backgroundColor = 'rgba(0,0,0,0.02)';
-        }
-    });
+        });
 
-    board.addEventListener('dragleave', e => {
-        const col = e.target.closest('.kanban-column');
-        if (col) {
+        col.addEventListener('dragleave', e => {
             col.style.backgroundColor = '';
-        }
-    });
+        });
 
-    board.addEventListener('drop', e => {
-        const col = e.target.closest('.kanban-column');
-        if (col && draggedItem) {
+        col.addEventListener('drop', e => {
             e.preventDefault();
             col.style.backgroundColor = '';
+
+            if (!draggedItem) return;
 
             const originColKey = draggedItem.dataset.origin;
-            const targetColId = col.id;
+            const targetColId = col.id; // e.g., 'col-applied'
             const targetColKey = targetColId.replace('col-', '');
-            const itemId = draggedItem.dataset.id;
+            const itemId = draggedItem.dataset.id; // Keep as string or handle both
 
             if (originColKey === targetColKey) return;
 
-            // Move data in memory
+            // Move data
             const itemIndex = KANBAN_DATA[originColKey].findIndex(i => String(i.id) === String(itemId));
             if (itemIndex > -1) {
                 const [item] = KANBAN_DATA[originColKey].splice(itemIndex, 1);
-                item.date = "Just now";
-                KANBAN_DATA[targetColKey].unshift(item);
+                item.date = "Just now"; // Update time
+                KANBAN_DATA[targetColKey].unshift(item); // Add to new col
 
-                // Re-render and save
-                renderAllColumns();
+                // Save to localStorage
                 saveKanbanData();
-                renderDashboardStats();
-                
-                // Refresh activity list if it moved to a significant status
-                if (targetColKey === 'applied' || targetColKey === 'interview' || targetColKey === 'offer') {
-                    // We could fetch again or just optimistic update, but fetch is safer to get server-side logged activity if we had it
-                    // For now, let's just refresh the dashboard data to get the latest activities
-                    setTimeout(loadDashboardData, 500); 
-                }
 
+                // Re-render
+                renderAllColumns();
+                setupDragAndDrop(); // Re-attach drag events for new elements
+                renderDashboardStats();
+                renderDashboardSkills();
+                renderRecentActivity();
                 showToast('Moved', `Moved to ${targetColKey.toUpperCase()}`, 'success');
             }
-        }
+        });
     });
 
-    board.dataset.dragInitialized = "true";
-    
-    // Set min-height for columns to ensure they are drop targets even when empty
-    document.querySelectorAll('.kanban-column').forEach(col => {
-        col.style.minHeight = "300px";
+    // We delegate dragstart since we re-render often, but for now re-attaching is simpler
+    // Or we use a static parent listener. Let's stick to delegating or simple re-attach.
+    // Actually, since we re-render, we need to bind events to the new elements.
+    // Let's modify renderKanbanColumn to attaching dragstart there? 
+    // Easier: use document-level delegation or just re-query in setupDragAndDrop which is called after render.
+
+    document.querySelectorAll('.draggable').forEach(draggable => {
+        draggable.addEventListener('dragstart', () => {
+            draggedItem = draggable;
+            draggable.classList.add('opacity-50');
+        });
+
+        draggable.addEventListener('dragend', () => {
+            draggedItem = null;
+            draggable.classList.remove('opacity-50');
+        });
     });
 }
 async function handleAddApp(e) {
@@ -604,7 +423,6 @@ async function handleAddApp(e) {
     const title = document.getElementById('appTitle').value;
     const company = document.getElementById('appCompany').value;
     const loc = document.getElementById('appLocation').value;
-    const url = document.getElementById('appUrl').value;
     const status = document.getElementById('appStatus').value;
 
     const btn = e.target.querySelector('button[type="submit"]');
@@ -614,91 +432,74 @@ async function handleAddApp(e) {
     try {
         const response = await fetch('/api/kanban/add', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ title, company, loc, status, url })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, company, loc, status })
         });
         const result = await response.json();
-        
+
         if (result.success) {
             // Success - reload dashboard data
             await loadDashboardData();
-            
+
             // Close modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('addAppModal'));
-            if (modal) modal.hide();
+            modal.hide();
             e.target.reset();
-            showToast('Added', 'Application added to tracker', 'success');
         }
     } catch (error) {
         console.error('Error adding app:', error);
-        showToast('Error', 'Failed to add application', 'danger');
+        alert('Failed to add application. Please try again.');
     } finally {
         btn.disabled = false;
         btn.innerHTML = 'Add to Tracker';
     }
 }
 
-async function trackJob(jobId, title, company, loc, url) {
-    try {
-        const response = await fetch('/api/kanban/add', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ job_id: jobId, title, company, loc, url, status: 'saved' })
-        });
-        const result = await response.json();
-        if (result.success) {
-            showToast('Saved', 'Job added to your tracker', 'success');
-            // If we are on dashboard, reload
-            if (document.getElementById('kanban-board')) {
-                loadDashboardData();
-            }
-        } else {
-            showToast('Error', result.error || 'Failed to save job', 'danger');
-        }
-    } catch (e) {
-        showToast('Error', 'Connection failed', 'danger');
-    }
-}
-
-function viewAppDetails(col, id) {
-    const item = KANBAN_DATA[col].find(i => String(i.id) === String(id));
-    if (!item) return;
-
-    const content = document.getElementById('viewAppContent');
-    if (!content) return;
-
-    content.innerHTML = `
-        <div class="mb-3">
-            <label class="small text-muted fw-bold text-uppercase">Job Title</label>
-            <div class="fw-bold fs-5">${item.title}</div>
-        </div>
-        <div class="mb-3">
-            <label class="small text-muted fw-bold text-uppercase">Company</label>
-            <div>${item.company}</div>
-        </div>
-        <div class="mb-3">
-            <label class="small text-muted fw-bold text-uppercase">Location</label>
-            <div><i class="bi bi-geo-alt me-1"></i>${item.loc}</div>
-        </div>
-        ${item.url ? `
-        <div class="mb-3">
-            <label class="small text-muted fw-bold text-uppercase">Job URL</label>
-            <div><a href="${item.url}" target="_blank" class="text-truncate d-block">${item.url}</a></div>
-        </div>` : ''}
-        <div class="mt-4 pt-3 border-top d-flex justify-content-between align-items-center">
-            <span class="small text-muted">Added on ${item.date}</span>
-            <span class="badge bg-primary-soft text-primary text-uppercase">${col}</span>
-        </div>
-    `;
-
-    const modal = new bootstrap.Modal(document.getElementById('viewAppModal'));
-    modal.show();
-}
-
-/* --- Search Setup --- */
+/* --- Search Mock Logic --- */
 function setupSearch() {
-    // Real data is loaded by handleJobSearch() via /api/search
-    // No mock data injected here — avoids flash of fake content
+    // Populate some initial results
+    const resultsDiv = document.getElementById('searchResults');
+    const jobs = [
+        { title: "Senior AI Engineer", company: "OpenAI", loc: "San Francisco", type: "Full-time", salary: "$180k - $250k", logo: "https://api.dicebear.com/7.x/initials/svg?seed=OA", tags: ["LLM", "Python"] },
+        { title: "Data Scientist", company: "NVIDIA", loc: "Santa Clara", type: "Remote", salary: "$160k - $220k", logo: "https://api.dicebear.com/7.x/initials/svg?seed=NV", tags: ["PyTorch", "CUDA"] },
+        { title: "Machine Learning Ops", company: "Tesla", loc: "Austin", type: "Full-time", salary: "$150k - $210k", logo: "https://api.dicebear.com/7.x/initials/svg?seed=TS", tags: ["Kubernetes", "MLFlow"] },
+        { title: "Product Manager (AI)", company: "Google", loc: "MTV", type: "Hybrid", salary: "$170k - $240k", logo: "https://api.dicebear.com/7.x/initials/svg?seed=GO", tags: ["Product", "Strategy"] }
+    ];
+
+    if (resultsDiv) {
+        resultsDiv.innerHTML = jobs.map(job => `
+            <div class="col-12">
+                <div class="card job-search-card border-0 shadow-sm rounded-4 overflow-hidden transition-hover">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-start gap-4">
+                            <div class="company-logo rounded-4 p-2 bg-light d-flex align-items-center justify-content-center" style="width: 64px; height: 64px; flex-shrink: 0;">
+                                <img src="${job.logo}" class="img-fluid rounded-3" alt="logo">
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <h5 class="fw-bold mb-0">${job.title}</h5>
+                                    <span class="text-primary fw-bold">${job.salary}</span>
+                                </div>
+                                <div class="text-muted small mb-3">
+                                    <span class="fw-bold text-dark">${job.company}</span>
+                                    <span class="mx-2">•</span>
+                                    <i class="bi bi-geo-alt me-1"></i> ${job.loc}
+                                    <span class="mx-2">•</span>
+                                    <i class="bi bi-clock me-1"></i> ${job.type}
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="d-flex gap-2">
+                                        ${job.tags.map(t => `<span class="badge bg-light text-dark border-0 rounded-pill px-3 py-2 small">${t}</span>`).join('')}
+                                    </div>
+                                    <button class="btn btn-primary rounded-pill px-4 fw-bold">Apply Now</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
 }
 
 /* --- Core Functionality (Upload etc) --- */
@@ -706,35 +507,8 @@ function setupUploadForm() {
     const form = document.getElementById('uploadForm');
     const fileInput = document.getElementById('pdfFile');
     const uploadArea = document.querySelector('.upload-area');
-    const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
-    const inlineError = document.getElementById('uploadInlineError');
-    const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
 
     if (!form || !fileInput) return;
-
-    const setInlineError = (message) => {
-        if (!inlineError) return;
-        if (message) {
-            inlineError.textContent = message;
-            inlineError.classList.remove('d-none');
-        } else {
-            inlineError.textContent = '';
-            inlineError.classList.add('d-none');
-        }
-    };
-
-    const validatePDF = (file) => {
-        if (!file) return 'Please select a PDF file.';
-        const name = (file.name || '').toLowerCase();
-        const type = (file.type || '').toLowerCase();
-        if (!name.endsWith('.pdf') && type !== 'application/pdf') {
-            return 'Only PDF files are allowed.';
-        }
-        if (file.size > MAX_UPLOAD_SIZE) {
-            return 'File size must be 100MB or less.';
-        }
-        return '';
-    };
 
     // Drag and drop events
     if (uploadArea) {
@@ -761,25 +535,12 @@ function setupUploadForm() {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        setInlineError('');
-
-        const selectedFile = fileInput.files[0];
-        const validationError = validatePDF(selectedFile);
-        if (validationError) {
-            setInlineError(validationError);
-            return;
-        }
 
         const loader = document.getElementById('globalLoader');
         if (loader) loader.classList.add('active');
-        if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.dataset.originalHtml = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
-        }
 
         const formData = new FormData();
-        formData.append('pdf_file', selectedFile);
+        formData.append('pdf_file', fileInput.files[0]);
 
         try {
             const response = await fetch('/upload', {
@@ -799,43 +560,20 @@ function setupUploadForm() {
                 // Reload graph if needed
                 // initializeGraph(true);
             } else {
-                setInlineError(data.error || 'Upload failed');
+                showToast('Error', data.error || 'Upload failed', 'danger');
             }
         } catch (error) {
-            setInlineError(error.message || 'Upload failed');
+            showToast('Error', error.message, 'danger');
         } finally {
             if (loader) loader.classList.remove('active');
-            if (submitBtn) {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = submitBtn.dataset.originalHtml || submitBtn.innerHTML;
-            }
         }
     });
 }
 
 function handleFiles(files) {
     const fileLabel = document.getElementById('fileNameDisplay');
-    const inlineError = document.getElementById('uploadInlineError');
-    const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
     if (files.length > 0 && fileLabel) {
-        const file = files[0];
-        const name = (file.name || '').toLowerCase();
-        const type = (file.type || '').toLowerCase();
-        if ((!name.endsWith('.pdf') && type !== 'application/pdf') || file.size > MAX_UPLOAD_SIZE) {
-            fileLabel.style.display = 'none';
-            if (inlineError) {
-                inlineError.textContent = !name.endsWith('.pdf') && type !== 'application/pdf'
-                    ? 'Only PDF files are allowed.'
-                    : 'File size must be 100MB or less.';
-                inlineError.classList.remove('d-none');
-            }
-            return;
-        }
-        if (inlineError) {
-            inlineError.textContent = '';
-            inlineError.classList.add('d-none');
-        }
-        fileLabel.textContent = file.name;
+        fileLabel.textContent = files[0].name;
         fileLabel.style.display = 'inline-block';
     }
 }
@@ -870,10 +608,10 @@ async function loadResults() {
                                     <i class="bi bi-file-earmark-text me-2"></i>CV Scan Results
                                 </h5>
                                 <div class="d-flex gap-2 align-items-center">
-                                    <span class="badge bg-white bg-opacity-75 text-dark">
+                                    <span class="badge bg-white bg-opacity-25 text-white">
                                         <i class="bi bi-file-pdf me-1"></i>${cvData.filename || 'CV'}
                                     </span>
-                                    <span class="badge bg-white bg-opacity-75 text-dark">
+                                    <span class="badge bg-white bg-opacity-25 text-white">
                                         ${cvData.char_count.toLocaleString()} chars • ${cvData.line_count} lines
                                     </span>
                                 </div>
@@ -954,49 +692,15 @@ async function loadResults() {
                                 </div>
                             </div>
                         </div>
-                        <div class="ms-3" style="min-width: 140px;">
-                            <div class="d-flex flex-column gap-2">
-                                <a href="/job-detail/${job.id}" class="btn btn-outline-primary btn-sm w-100">
-                                    <i class="bi bi-info-circle me-1"></i>View Analysis
-                                </a>
-                                <button class="btn btn-light btn-sm w-100 track-btn" 
-                                    data-id="${job.id}" 
-                                    data-title="${escapeHtml(job.title)}" 
-                                    data-company="${escapeHtml(job.company)}" 
-                                    data-loc="${escapeHtml(job.city)}" 
-                                    data-url="${job.url || ''}">
-                                    <i class="bi bi-bookmark-plus me-1"></i>Track
-                                </button>
-                                <a href="${job.url}" target="_blank" class="btn btn-primary btn-sm w-100">
-                                    <i class="bi bi-box-arrow-up-right me-1"></i>Apply
-                                </a>
-                            </div>
+                        <div>
+                            <button class="btn btn-outline-primary btn-sm me-2" onclick="loadJobDetail(${index})">View Analysis</button>
+                            <a href="${job.url}" target="_blank" class="btn btn-primary btn-sm">Apply</a>
                         </div>
                     </div>
                 `;
             });
             html += '</div></div>';
-        } else{
-            html += `
-                <div class="row justify-content-center">
-                    <div class="col-md-10">
-                        <div class="alert alert-warning border-0 shadow-sm rounded-4 p-4 d-flex align-items-start gap-3">
-                            <i class="bi bi-exclamation-triangle-fill fs-4"></i>
-                            <div>
-                                <div class="fw-bold mb-1">No job matches yet</div>
-                                <div class="mb-3">
-                                    You need to scan your CV first to see job recommendations.
-                                </div>
-                                <a href="/upload_page" class="btn btn-primary btn-sm rounded-pill px-3">
-                                    <i class="bi bi-upload me-2"></i>Scan CV Now
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>  
-            `;
         }
-
 
         container.innerHTML = html;
 
@@ -1010,7 +714,7 @@ async function loadResults() {
             <i class="bi bi-exclamation-triangle-fill fs-4"></i>
             <div>
                 <div class="fw-bold">Scan Incomplete</div>
-                <div>${escapeHtml(msg)}</div>
+                <div>${msg}</div>
             </div>
         </div>`;
     }
@@ -1036,19 +740,9 @@ function toggleCVText() {
 
 // Escape HTML to prevent XSS in CV text display
 function escapeHtml(text) {
-    const str = String(text ?? '');
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-function decodeHtmlEntities(text) {
-    const textarea = document.createElement('textarea');
-    textarea.innerHTML = text;
-    return textarea.value;
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 async function loadJobDetail(index) {
@@ -1106,405 +800,69 @@ async function loadJobDetail(index) {
     }
 }
 
-// Enhanced Skills Profile - Detailed Profile Page
-async function loadEnhancedSkillsProfile() {
-    const container = document.getElementById('skillsProfile');
-    if (!container) return;
-
-    try {
-        // Fetch skills and CV data in parallel
-        const [skillsResponse, cvResponse] = await Promise.all([
-            fetch('/user-skills'),
-            fetch('/api/cv-full')
-        ]);
-
-        const skills = await skillsResponse.json();
-        const cvData = await cvResponse.json();
-
-        // Handle empty state
-        if (!cvData.active || !skills || skills.length === 0) {
-            container.innerHTML = renderEmptyState();
-            return;
-        }
-
-        // Normalize and sort skills
-        const normalizedSkills = Array.isArray(skills) ? skills.map(skill => ({
-            name: skill.name,
-            is_core: Boolean(skill.is_core),
-            probability: skill.probability || 0.5
-        })) : [];
-
-        // Separate skills
-        const coreSkills = normalizedSkills.filter(s => s.is_core).sort((a, b) => b.probability - a.probability);
-        const supportingSkills = normalizedSkills.filter(s => !s.is_core).sort((a, b) => b.probability - a.probability);
-        
-        // Calculate average confidence
-        const avgConfidence = Math.round(
-            (normalizedSkills.reduce((sum, s) => sum + s.probability, 0) / normalizedSkills.length) * 100
-        );
-
-        // Generate growth suggestions (top missing skills based on detected role)
-        const growthSuggestions = generateGrowthSuggestions(normalizedSkills, cvData.role);
-
-        // Build HTML
-        const html = `
-            <!-- Hero Section -->
-            <div class="skills-hero">
-                <div class="skills-hero-content">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <h1 class="mb-2">${escapeHtml(cvData.role || 'Professional')}</h1>
-                            <div class="d-flex gap-2 flex-wrap">
-                                ${cvData.city ? `<span class="badge bg-white bg-opacity-75 text-dark"><i class="bi bi-geo-alt me-1"></i>${escapeHtml(cvData.city)}</span>` : ''}
-                                ${cvData.email ? `<span class="badge bg-white bg-opacity-75 text-dark"><i class="bi bi-envelope me-1"></i>${escapeHtml(cvData.email)}</span>` : ''}
-                            </div>
-                        </div>
-                        <small class="text-white-50">CV: ${escapeHtml(cvData.filename)}</small>
-                    </div>
-
-                    <!-- Profile Stats -->
-                    <div class="profile-summary">
-                        <div class="stat-card">
-                            <span class="stat-number">${normalizedSkills.length}</span>
-                            <span class="stat-label">Total Skills</span>
-                        </div>
-                        <div class="stat-card">
-                            <span class="stat-number">${coreSkills.length}</span>
-                            <span class="stat-label">Core Skills</span>
-                        </div>
-                        <div class="stat-card">
-                            <span class="stat-number">${avgConfidence}%</span>
-                            <span class="stat-label">Avg. Confidence</span>
-                        </div>
-                        <div class="stat-card">
-                            <span class="stat-number">${supportingSkills.length}</span>
-                            <span class="stat-label">Supporting</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- CTA Buttons -->
-            <div class="skills-cta mb-4">
-                <a href="/results-page" class="cta-button btn btn-primary">
-                    <i class="bi bi-briefcase-fill"></i>View Matched Jobs
-                </a>
-                <a href="/interview-page" class="cta-button btn btn-success">
-                    <i class="bi bi-chat-dots-fill"></i>Start Interview Practice
-                </a>
-                <a href="/upload_page" class="cta-button btn btn-info">
-                    <i class="bi bi-upload"></i>Re-upload CV
-                </a>
-            </div>
-
-            <!-- Core Skills Section -->
-            <div class="skills-section">
-                <h2 class="section-title">
-                    <i class="bi bi-star-fill text-warning me-2"></i>Core Skills (${coreSkills.length})
-                </h2>
-                <div class="row g-3 mt-3">
-                    ${coreSkills.length > 0 ? 
-                        coreSkills.map(skill => renderSkillCard(skill, 'core')).join('') 
-                        : '<p class="text-muted">No core skills detected.</p>'
-                    }
-                </div>
-            </div>
-
-            <!-- Supporting Skills Section -->
-            <div class="skills-section">
-                <h2 class="section-title">
-                    <i class="bi bi-lightbulb text-info me-2"></i>Supporting Skills (${supportingSkills.length})
-                </h2>
-                <div class="row g-3 mt-3">
-                    ${supportingSkills.length > 0 ? 
-                        supportingSkills.map(skill => renderSkillCard(skill, 'supporting')).join('') 
-                        : '<p class="text-muted">No supporting skills detected.</p>'
-                    }
-                </div>
-            </div>
-
-            <!-- Growth Suggestions Section -->
-            <div class="skills-section">
-                <h2 class="section-title">
-                    <i class="bi bi-trending-up text-success me-2"></i>Growth Suggestions
-                </h2>
-                <div class="row g-3 mt-3">
-                    ${growthSuggestions.length > 0 ? 
-                        growthSuggestions.map((skill, idx) => `
-                            <div class="col-lg-6">
-                                <div class="skill-card">
-                                    <div class="skill-info">
-                                        <div class="skill-name">${escapeHtml(skill)}</div>
-                                        <div class="text-muted small">Recommended for your role</div>
-                                    </div>
-                                    <span class="badge bg-success">Add</span>
-                                </div>
-                            </div>
-                        `).join('')
-                        : '<p class="text-muted">No growth suggestions at this time.</p>'
-                    }
-                </div>
-            </div>
-        `;
-
-        container.innerHTML = html;
-
-    } catch (error) {
-        console.error('Error loading skills profile:', error);
-        container.innerHTML = `
-            <div class="alert alert-danger border-0 rounded-3">
-                <i class="bi bi-exclamation-triangle me-2"></i>Failed to load skills profile. Please try again.
-            </div>
-        `;
-    }
-}
-
-function renderSkillCard(skill, type) {
-    const percentage = Math.round(skill.probability * 100);
-    const badgeClass = type === 'core' ? 'badge-core' : 'badge-supporting';
-    const badgeText = type === 'core' ? 'CORE' : 'SUPPORTING';
-    const barColor = type === 'core' ? 'success' : 'info';
-
-    return `
-        <div class="col-lg-6 col-xl-4">
-            <div class="skill-card">
-                <div class="skill-info">
-                    <div class="skill-name">${escapeHtml(skill.name)}</div>
-                    <span class="skill-badge ${badgeClass}">${badgeText}</span>
-                    <div class="progress-container">
-                        <div class="progress">
-                            <div class="progress-bar bg-${barColor}" style="width: ${percentage}%"></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="skill-confidence">${percentage}%</div>
-            </div>
-        </div>
-    `;
-}
-
-function renderEmptyState() {
-    return `
-        <div class="empty-state">
-            <div class="empty-state-icon">
-                <i class="bi bi-file-earmark-pdf"></i>
-            </div>
-            <h2 class="empty-state-title">No Skills Profile Yet</h2>
-            <p class="empty-state-text">Upload your CV to extract and analyze your professional skills profile.</p>
-            <a href="/upload_page" class="btn btn-primary btn-lg">
-                <i class="bi bi-upload me-2"></i>Upload Your CV
-            </a>
-        </div>
-    `;
-}
-
-function generateGrowthSuggestions(currentSkills, role) {
-    const currentSkillNames = new Set(currentSkills.map(s => s.name.toLowerCase()));
-    
-    let suggestedSkills = [];
-    
-    // Normalize role to lowercase for comparison
-    const normalizedRole = (role || '').toLowerCase();
-    
-    // Role-based skill suggestions
-    if (normalizedRole.includes('sales') || normalizedRole.includes('bán hàng') || normalizedRole.includes('business development')) {
-        // Sales/Business Development skills
-        suggestedSkills = [
-            'CRM', 'Lead Generation', 'Negotiation', 'Customer Relationship Management',
-            'Sales Forecasting', 'Communication', 'Market Research', 'Excel', 'Presentation Skills',
-            'Pipeline Management', 'Client Management', 'Strategic Planning'
-        ];
-    } else if (normalizedRole.includes('account') || normalizedRole.includes('finance') || normalizedRole.includes('tài chính') || normalizedRole.includes('kế toán')) {
-        // Accounting/Finance skills
-        suggestedSkills = [
-            'Excel', 'Financial Reporting', 'Taxes', 'Accounting Software', 'Budgeting',
-            'Data Entry', 'Compliance', 'GAAP', 'Audit', 'Cost Analysis',
-            'Reconciliation', 'P&L Statement', 'Financial Analysis'
-        ];
-    } else if (normalizedRole.includes('developer') || normalizedRole.includes('engineer') || normalizedRole.includes('programmer') || 
-               normalizedRole.includes('devops') || normalizedRole.includes('architect') || normalizedRole.includes('cntt') || 
-               normalizedRole.includes('it ')) {
-        // IT/Developer skills
-        suggestedSkills = [
-            'Cloud Computing', 'Docker', 'Kubernetes', 'CI/CD', 'API Development',
-            'Microservices', 'System Design', 'Machine Learning', 'DevOps', 'AWS',
-            'Azure', 'GCP', 'GraphQL', 'Data Security', 'Testing Automation'
-        ];
-    } else if (normalizedRole.includes('marketing') || normalizedRole.includes('market') || normalizedRole.includes('thị trường')) {
-        // Marketing skills
-        suggestedSkills = [
-            'Digital Marketing', 'SEO', 'Content Marketing', 'Social Media Marketing',
-            'Email Marketing', 'Analytics', 'Google Analytics', 'A/B Testing',
-            'Brand Strategy', 'Market Research', 'Campaign Management', 'Communication'
-        ];
-    } else if (normalizedRole.includes('hr') || normalizedRole.includes('human resources') || normalizedRole.includes('nhân sự')) {
-        // HR skills
-        suggestedSkills = [
-            'Recruitment', 'Employee Relations', 'Performance Management', 'Payroll',
-            'Training & Development', 'HRIS', 'Labor Laws', 'Communication',
-            'Conflict Resolution', 'Onboarding', 'Excel', 'Data Management'
-        ];
-    } else if (normalizedRole.includes('manager') || normalizedRole.includes('lead') || normalizedRole.includes('director') || normalizedRole.includes('quản lý')) {
-        // Management skills
-        suggestedSkills = [
-            'Project Management', 'Team Leadership', 'Strategic Planning', 'Decision Making',
-            'Communication', 'Mentoring', 'Budget Management', 'Risk Management',
-            'Agile Methodology', 'Performance Metrics', 'Stakeholder Management', 'Excel'
-        ];
-    } else {
-        // Default/General professional skills
-        suggestedSkills = [
-            'Communication', 'Problem Solving', 'Project Management', 'Excel',
-            'Time Management', 'Leadership', 'Teamwork', 'Strategic Thinking',
-            'Data Analysis', 'Presentation Skills', 'Critical Thinking', 'Adaptability'
-        ];
-    }
-    
-    // Filter out skills already in the current skill set
-    const suggestions = suggestedSkills.filter(skill => !currentSkillNames.has(skill.toLowerCase()));
-    
-    return suggestions.slice(0, 6); // Return top 6 suggestions
-}
-
 async function loadSkills() {
     const container = document.getElementById('skillsList');
     if (!container) return;
 
-    container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
-
     try {
         const response = await fetch('/user-skills');
         const skills = await response.json();
-        const normalizedSkills = Array.isArray(skills) ? skills.map(skill => ({
-            name: skill.name,
-            is_core: Boolean(skill.is_core),
-            tag: skill.tag || ''
-        })) : [];
 
-        if (!skills || skills.length === 0) {
-            container.innerHTML = `
-                <div class="alert alert-warning border-0 shadow-sm rounded-4 d-flex align-items-start gap-3">
-                    <i class="bi bi-info-circle-fill fs-4"></i>
-                    <div>
-                        <div class="fw-bold mb-1">No skills detected yet</div>
-                        <div class="mb-2">Upload and scan your CV to extract your skill profile.</div>
-                        <a href="/upload_page" class="btn btn-primary btn-sm rounded-pill px-3">
-                            <i class="bi bi-upload me-1"></i>Scan CV
-                        </a>
-                    </div>
-                </div>
-            `;
-            return;
-        }
-
-        const colors = ['primary', 'success', 'info', 'warning', 'danger'];
         let html = `
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h3 class="fw-bold mb-0">Extracted Skill Profile <span class="badge bg-primary rounded-pill ms-2">${skills.length}</span></h3>
-                <a href="/upload_page" class="btn btn-outline-secondary btn-sm">
+                <h3 class="fw-bold mb-0">Extracted Skill Profile</h3>
+                <button class="btn btn-outline-secondary btn-sm" onclick="window.location.href='/upload_page'">
                     <i class="bi bi-arrow-left me-2"></i>New CV
-                </a>
+                </button>
             </div>
-            <div class="row g-3">
+            <div class="d-flex flex-wrap gap-2 p-3 bg-light rounded">
         `;
         skills.forEach(skill => {
             const className = skill.is_core ? 'badge bg-primary' : 'badge bg-secondary';
             html += `<span class="${className} p-2">${skill.name}</span>`;
         });
-
         html += '</div>';
-        container.innerHTML = html;
 
+        container.innerHTML = html;
     } catch (error) {
-        container.innerHTML = `
-            <div class="alert alert-danger border-0 rounded-4">
-                <i class="bi bi-exclamation-triangle me-2"></i>Failed to load skills. Please try again.
-            </div>
-        `;
         console.error(error);
     }
 }
 
 async function loadStatistics() {
+    // Re-use logic or just leave blank for now as it triggers on tab click
     const container = document.getElementById('statisticsDiv');
-    if (!container) return;
-
-    container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
-
     try {
         const response = await fetch('/statistics');
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error || 'Failed to load statistics');
-        }
         const stats = await response.json();
         container.innerHTML = `
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h3 class="fw-bold mb-0">Database Statistics</h3>
-                <a href="/upload_page" class="btn btn-outline-secondary btn-sm">
+                <button class="btn btn-outline-secondary btn-sm" onclick="window.location.href='/upload_page'">
                     <i class="bi bi-arrow-left me-2"></i>New CV
-                </a>
+                </button>
             </div>
             <div class="row g-4">
-                <div class="col-md-3 col-6">
-                    <div class="card p-3 text-center border-0 shadow-sm rounded-4">
+                <div class="col-md-3">
+                    <div class="card p-3 text-center border-0 shadow-sm">
                         <div class="display-6 fw-bold text-primary">${stats.total_jobs}</div>
-                        <div class="small text-muted mt-1">Total Jobs</div>
+                        <div class="small text-muted">Total Jobs</div>
                     </div>
                 </div>
-                <div class="col-md-3 col-6">
-                    <div class="card p-3 text-center border-0 shadow-sm rounded-4">
-                        <div class="display-6 fw-bold text-success">${stats.user_skills}</div>
-                        <div class="small text-muted mt-1">Your Skills</div>
-                    </div>
-                </div>
-                <div class="col-md-3 col-6">
-                    <div class="card p-3 text-center border-0 shadow-sm rounded-4">
-                        <div class="display-6 fw-bold text-warning">${stats.avg_job_skills}</div>
-                        <div class="small text-muted mt-1">Avg Skills/Job</div>
-                    </div>
-                </div>
-                <div class="col-md-3 col-6">
-                    <div class="card p-3 text-center border-0 shadow-sm rounded-4">
-                        <div class="display-6 fw-bold text-info">${stats.median_job_skills}</div>
-                        <div class="small text-muted mt-1">Median Skills/Job</div>
-                    </div>
-                </div>
+                <!-- ... other stats ... -->
             </div>
         `;
-    } catch (e) {
-        if (!container) return;
-        container.innerHTML = `
-            <div class="alert alert-warning border-0 shadow-sm rounded-4 d-flex align-items-start gap-3">
-                <i class="bi bi-info-circle-fill fs-4"></i>
-                <div>
-                    <div class="fw-bold mb-1">Scan your CV first</div>
-                    <div class="mb-2">${e.message || 'Upload and scan your CV to see personalized statistics.'}</div>
-                    <a href="/upload_page" class="btn btn-primary btn-sm rounded-pill px-3">
-                        <i class="bi bi-upload me-1"></i>Scan CV
-                    </a>
-                </div>
-            </div>
-        `;
-    }
+    } catch (e) { }
 }
 
 function showToast(title, message, type = 'primary') {
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3 shadow-lg`;
     alertDiv.style.zIndex = '9999';
-
-    const strong = document.createElement('strong');
-    strong.textContent = title;
-    alertDiv.appendChild(strong);
-    alertDiv.appendChild(document.createTextNode(` ${message}`));
-
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.className = 'btn-close';
-    closeBtn.setAttribute('data-bs-dismiss', 'alert');
-    alertDiv.appendChild(closeBtn);
-
+    alertDiv.innerHTML = `
+        <strong>${title}</strong> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
     document.body.appendChild(alertDiv);
 
     setTimeout(() => {
@@ -1520,28 +878,6 @@ let interviewState = {
     questionCount: 0,
     detectedSkills: new Set()
 };
-
-function attachAnalysisToLatestUserTurn(analysis) {
-    if (!analysis) return;
-    for (let i = interviewState.history.length - 1; i >= 0; i--) {
-        const turn = interviewState.history[i];
-        if (turn && turn.role === 'user') {
-            turn.analysis = analysis;
-            return;
-        }
-    }
-}
-
-function normalizeInterviewHistory(history = []) {
-    return history.map(turn => {
-        if (!turn || typeof turn !== 'object') return turn;
-        const normalized = { ...turn };
-        if (normalized.role === 'user' && !Object.prototype.hasOwnProperty.call(normalized, 'analysis')) {
-            normalized.analysis = null;
-        }
-        return normalized;
-    });
-}
 
 async function startInterview() {
     // 1. Fetch user profile for context
@@ -1620,14 +956,13 @@ async function startInterviewWithTopic(topicKey, topicPrompt) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         message: topicPrompt,
-                        history: normalizeInterviewHistory(interviewState.history),
+                        history: interviewState.history,
                         topic_start: topicKey
                     })
                 });
                 const data = await response.json();
                 removeTypingIndicator(typingId);
                 if (data.reply) {
-                    attachAnalysisToLatestUserTurn(data.analysis);
                     addChatMessage('ai', data.reply);
                     interviewState.history.push({ role: 'ai', content: data.reply });
                     interviewState.questionCount++;
@@ -1675,17 +1010,16 @@ async function handleChatSubmit(e) {
         const response = await fetch('/interview/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message, history: normalizeInterviewHistory(interviewState.history) })
+            body: JSON.stringify({ message: message, history: interviewState.history })
         });
 
         const data = await response.json();
         removeTypingIndicator(typingId);
 
         if (data.reply) {
-            attachAnalysisToLatestUserTurn(data.analysis);
             addChatMessage('ai', data.reply);
-            interviewState.history.push({ role: 'ai', content: data.reply });
-            
+            interviewState.history.push({ role: 'ai', content: data.reply, analysis: data.analysis });
+
             // Update Live Skills in UI
             if (data.analysis && data.analysis.mentioned_skills) {
                 data.analysis.mentioned_skills.forEach(s => interviewState.detectedSkills.add(s));
@@ -1712,41 +1046,20 @@ async function handleChatSubmit(e) {
 }
 
 function formatInterviewText(text) {
-    // Escape first, then allow minimal markdown (**bold**) only
-    const escaped = escapeHtml(text);
-    return escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-}
-
-function appendFormattedInterviewText(container, text) {
-    const formatted = formatInterviewText(text);
-    const parts = formatted.split(/(<strong>.*?<\/strong>)/g);
-
-    parts.forEach(part => {
-        if (!part) return;
-        const match = part.match(/^<strong>(.*?)<\/strong>$/);
-        if (match) {
-            const strong = document.createElement('strong');
-            strong.textContent = decodeHtmlEntities(match[1]);
-            container.appendChild(strong);
-        } else {
-            container.appendChild(document.createTextNode(decodeHtmlEntities(part)));
-        }
-    });
+    // Convert **bold** markdown to <strong> tags
+    return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 }
 
 function addChatMessage(role, text) {
     const messagesDiv = document.getElementById('chat-messages');
     const bubble = document.createElement('div');
-    const textNode = document.createElement('span');
-    const metaNode = document.createElement('span');
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     bubble.className = `chat-bubble ${role} d-flex flex-column`;
-    appendFormattedInterviewText(textNode, text);
-    metaNode.className = 'meta';
-    metaNode.textContent = timestamp;
-    bubble.appendChild(textNode);
-    bubble.appendChild(metaNode);
+    bubble.innerHTML = `
+        <span>${formatInterviewText(text)}</span>
+        <span class="meta">${timestamp}</span>
+    `;
 
     messagesDiv.appendChild(bubble);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -1783,7 +1096,7 @@ async function endInterview() {
         const response = await fetch('/interview/summary', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ history: normalizeInterviewHistory(interviewState.history) })
+            body: JSON.stringify({ history: interviewState.history })
         });
         const summary = await response.json();
 
@@ -1801,13 +1114,9 @@ async function endInterview() {
         // 3. Render Strengths (Skills)
         const skillsContainer = document.getElementById('summary-skills');
         if (skillsContainer) {
-            skillsContainer.innerHTML = '';
-            (summary.detected_skills || []).forEach(s => {
-                const badge = document.createElement('span');
-                badge.className = 'badge bg-primary bg-opacity-10 text-primary px-3 py-2 border border-primary border-opacity-25';
-                badge.textContent = s;
-                skillsContainer.appendChild(badge);
-            });
+            skillsContainer.innerHTML = summary.detected_skills.map(s =>
+                `<span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 border border-primary border-opacity-25">${s}</span>`
+            ).join('');
         }
 
         // 4. Render Dimension Bars
@@ -1859,16 +1168,11 @@ function updateLiveSkillsUI() {
     const container = document.getElementById('live-skills-container');
     const card = document.getElementById('live-skills-card');
     if (!container || interviewState.detectedSkills.size === 0) return;
-    
+
     card.style.display = 'block';
-    container.innerHTML = '';
-    Array.from(interviewState.detectedSkills).forEach(skill => {
-        const badge = document.createElement('span');
-        badge.className = 'badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 animate__animated animate__bounceIn';
-        badge.style.fontSize = '0.7rem';
-        badge.textContent = skill;
-        container.appendChild(badge);
-    });
+    container.innerHTML = Array.from(interviewState.detectedSkills).map(skill =>
+        `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 animate__animated animate__bounceIn" style="font-size: 0.7rem;">${skill}</span>`
+    ).join('');
 }
 
 
@@ -2036,7 +1340,7 @@ function changeSortOrder(sortValue, displayText, element) {
 async function handleJobSearch() {
     currentSearchOffset = 0; // Reset offset on new search
     const queryInput = document.getElementById('job-search-input');
-    const locationSelect = document.getElementById('search-city-filter');
+    const citySelect = document.getElementById('search-city-filter');
     const resultsDiv = document.getElementById('searchResults');
     const countSpan = document.getElementById('search-results-count');
     const loadMoreBtn = document.getElementById('btn-load-more');
@@ -2044,7 +1348,7 @@ async function handleJobSearch() {
     if (!resultsDiv || !queryInput) return;
 
     const query = queryInput.value;
-    const location = locationSelect ? locationSelect.value : 'All Locations';
+    const city = citySelect ? citySelect.value : 'All Locations';
 
     // Collect Experience Filters
     const expArr = [];
@@ -2069,20 +1373,9 @@ async function handleJobSearch() {
     resultsDiv.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Searching the database...</p></div>';
 
     try {
-        const url = `/api/search?q=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}&offset=0&limit=${SEARCH_LIMIT}&exp=${expParam}&type=${typeParam}&min_salary=${minSalary}&sort=${currentSortOrder}`;
+        const url = `/api/search?q=${encodeURIComponent(query)}&city=${encodeURIComponent(city)}&offset=0&limit=${SEARCH_LIMIT}&exp=${expParam}&type=${typeParam}&min_salary=${minSalary}&sort=${currentSortOrder}`;
         const response = await fetch(url);
-        
-        if (!response.ok) {
-            throw new Error(`Server responded with ${response.status}`);
-        }
-        
         const data = await response.json();
-
-        if (data.initializing) {
-            resultsDiv.innerHTML = '<div class="col-12 text-center py-5 text-info"><div class="spinner-border spinner-border-sm me-2"></div><p class="mt-2">Search service is still initializing. Please wait...</p></div>';
-            setTimeout(handleJobSearch, 3000);
-            return;
-        }
 
         if (countSpan) countSpan.textContent = `(${data.total} results)`;
         resultsDiv.innerHTML = '';
@@ -2106,20 +1399,20 @@ async function handleJobSearch() {
 
     } catch (e) {
         console.error("Search error:", e);
-        resultsDiv.innerHTML = `<div class="col-12 text-center py-5 text-danger"><p>Error connecting to search service.</p><small class="text-muted">${e.message}</small></div>`;
+        resultsDiv.innerHTML = '<div class="col-12 text-center py-5 text-danger"><p>Error connecting to search service.</p></div>';
     }
 }
 
 async function loadMoreJobs() {
     const queryInput = document.getElementById('job-search-input');
-    const locationSelect = document.getElementById('search-city-filter');
+    const citySelect = document.getElementById('search-city-filter');
     const loadMoreBtn = document.getElementById('btn-load-more');
 
     if (!loadMoreBtn) return;
 
     currentSearchOffset += SEARCH_LIMIT;
     const query = queryInput ? queryInput.value : '';
-    const location = locationSelect ? locationSelect.value : 'All Locations';
+    const city = citySelect ? citySelect.value : 'All Locations';
 
     const originalText = loadMoreBtn.innerHTML;
     loadMoreBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading...';
@@ -2138,7 +1431,7 @@ async function loadMoreJobs() {
 
         const minSalary = document.getElementById('search-salary-range')?.value || 0;
 
-        const url = `/api/search?q=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}&offset=${currentSearchOffset}&limit=${SEARCH_LIMIT}&exp=${expParam}&type=${typeParam}&min_salary=${minSalary}&sort=${currentSortOrder}`;
+        const url = `/api/search?q=${encodeURIComponent(query)}&city=${encodeURIComponent(city)}&offset=${currentSearchOffset}&limit=${SEARCH_LIMIT}&exp=${expParam}&type=${typeParam}&min_salary=${minSalary}&sort=${currentSortOrder}`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -2172,22 +1465,9 @@ function renderJobsBatch(jobs) {
                         <p class="text-muted small mb-3">${job.company}</p>
                         <div class="d-flex justify-content-between align-items-center mt-auto">
                             <div class="text-primary fw-bold">${job.salary}</div>
-                            <div class="d-flex flex-column gap-2" style="min-width: 120px;">
-                                <a href="/job-detail/${job.id}" class="btn btn-sm btn-outline-primary rounded-pill px-3 w-100">
-                                    <i class="bi bi-info-circle me-1"></i>Details
-                                </a>
-                                <button class="btn btn-sm btn-light rounded-pill px-3 w-100 track-btn" 
-                                    data-id="${job.id}" 
-                                    data-title="${escapeHtml(job.title)}" 
-                                    data-company="${escapeHtml(job.company)}" 
-                                    data-loc="${escapeHtml(job.location)}" 
-                                    data-url="${job.url || ''}">
-                                    <i class="bi bi-bookmark-plus me-1"></i>Track
-                                </button>
-                                <a href="${job.url}" target="_blank" class="btn btn-sm btn-primary rounded-pill px-3 w-100">
-                                    <i class="bi bi-box-arrow-up-right me-1"></i>Apply
-                                </a>
-                            </div>
+                            <a href="${job.url}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                <i class="bi bi-box-arrow-up-right me-1"></i>Learn More
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -2199,13 +1479,13 @@ function renderJobsBatch(jobs) {
 
 function resetSearchFilters() {
     const queryInput = document.getElementById('job-search-input');
-    const locationSelect = document.getElementById('search-city-filter');
+    const citySelect = document.getElementById('search-city-filter');
     const salaryRange = document.getElementById('search-salary-range');
     const expChecks = ['exp-intern', 'exp-junior', 'exp-senior', 'exp-lead'];
     const typeChecks = ['type-full', 'type-part', 'type-remote', 'type-contract'];
 
     if (queryInput) queryInput.value = '';
-    if (locationSelect) locationSelect.selectedIndex = 0;
+    if (citySelect) citySelect.selectedIndex = 0;
     if (salaryRange) {
         salaryRange.value = 0;
         document.getElementById('search-salary-val').textContent = '$0k+';
@@ -2235,238 +1515,3 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
-
-/**
- * Enhanced Skills Profile rendering for skills_page
- */
-async function loadEnhancedSkillsProfile() {
-    const container = document.getElementById('skillsProfile');
-    if (!container) return;
-
-    try {
-        const response = await fetch('/api/cv-full');
-        const data = await response.json();
-
-        if (!data.active) {
-            container.innerHTML = `
-                <div class="sp-empty sp-fade-in">
-                    <div class="sp-empty-icon">
-                        <i class="bi bi-cloud-arrow-up"></i>
-                    </div>
-                    <h2 class="sp-empty-title">No Skills Profile Yet</h2>
-                    <p class="sp-empty-text">Upload and analyze your CV to unlock your personalized skills profile with AI-powered insights.</p>
-                    <a href="/upload_page" class="sp-empty-btn">
-                        <i class="bi bi-upload"></i> Upload Your CV
-                    </a>
-                </div>
-            `;
-            return;
-        }
-
-        const skills = data.detailed_skills || [];
-        const coreSkills = skills.filter(s => s.is_core);
-        const otherSkills = skills.filter(s => !s.is_core);
-        const avgProb = skills.length > 0 ? Math.round(skills.reduce((s, sk) => s + sk.prob, 0) / skills.length) : 0;
-
-        // Confidence distribution
-        const highConf = skills.filter(s => s.prob >= 70).length;
-        const medConf = skills.filter(s => s.prob >= 40 && s.prob < 70).length;
-        const lowConf = skills.filter(s => s.prob < 40).length;
-        const total = skills.length || 1;
-
-        // Growth suggestions
-        const growthSuggestions = _spGenerateGrowth(skills, data.role);
-
-        function _spRadial(prob, type) {
-            const r = 18, circ = 2 * Math.PI * r;
-            const offset = circ - (prob / 100) * circ;
-            const gradId = type === 'core' ? 'gradCore' : 'gradSupport';
-            const barClass = type === 'core' ? 'sp-radial-bar-core' : 'sp-radial-bar-support';
-            return `
-                <div class="sp-radial">
-                    <svg viewBox="0 0 44 44">
-                        <circle class="sp-radial-track" cx="22" cy="22" r="${r}"/>
-                        <circle class="${barClass} sp-radial-bar" cx="22" cy="22" r="${r}"
-                            stroke-dasharray="${circ}" stroke-dashoffset="${offset}"
-                            style="stroke: url(#${gradId})"/>
-                    </svg>
-                    <span class="sp-radial-value">${Math.round(prob)}%</span>
-                </div>`;
-        }
-
-        function _spCard(skill, type, idx) {
-            const tagClass = type === 'core' ? 'sp-tag-core' : 'sp-tag-support';
-            const tagText = type === 'core' ? '★ Core' : '◆ Support';
-            const cardClass = type === 'core' ? 'sp-card-core' : 'sp-card-support';
-            const progressClass = type === 'core' ? 'sp-progress-core' : 'sp-progress-support';
-            return `
-                <div class="sp-skill-card ${cardClass} sp-fade-in" style="animation-delay: ${idx * 0.05}s">
-                    ${_spRadial(skill.prob, type)}
-                    <div class="sp-skill-body">
-                        <div class="sp-skill-name">${escapeHtml(skill.name)}</div>
-                        <span class="sp-skill-tag ${tagClass}">${tagText}</span>
-                        <div class="sp-progress-track">
-                            <div class="sp-progress-fill ${progressClass}" style="width: ${skill.prob}%"></div>
-                        </div>
-                    </div>
-                </div>`;
-        }
-
-        let html = `
-            <!-- Hero -->
-            <div class="sp-hero sp-fade-in">
-                <div class="sp-hero-content">
-                    <span class="sp-hero-badge"><i class="bi bi-cpu"></i> AI Professional Profile</span>
-                    <h1 class="sp-hero-title">${escapeHtml(data.role || 'Professional')}</h1>
-                    <div class="sp-hero-meta">
-                        ${data.city ? `<span class="sp-hero-meta-item"><i class="bi bi-geo-alt-fill"></i>${escapeHtml(data.city)}</span>` : ''}
-                        ${data.email ? `<span class="sp-hero-meta-item"><i class="bi bi-envelope-fill"></i>${escapeHtml(data.email)}</span>` : ''}
-                        ${data.filename ? `<span class="sp-hero-meta-item"><i class="bi bi-file-earmark-pdf-fill"></i>${escapeHtml(data.filename)}</span>` : ''}
-                    </div>
-                    <div class="sp-stats-row">
-                        <div class="sp-stat-card">
-                            <div class="sp-stat-value">${data.skills_count}</div>
-                            <div class="sp-stat-label">Total Skills</div>
-                        </div>
-                        <div class="sp-stat-card">
-                            <div class="sp-stat-value">${data.core_skills_count}</div>
-                            <div class="sp-stat-label">Core Skills</div>
-                        </div>
-                        <div class="sp-stat-card">
-                            <div class="sp-stat-value">${avgProb}%</div>
-                            <div class="sp-stat-label">Avg. Confidence</div>
-                        </div>
-                        <div class="sp-stat-card">
-                            <div class="sp-stat-value">${otherSkills.length}</div>
-                            <div class="sp-stat-label">Supporting</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Actions -->
-            <div class="sp-actions sp-fade-in" style="animation-delay: 0.1s">
-                <a href="/results-page" class="sp-action-btn sp-action-primary">
-                    <i class="bi bi-briefcase-fill"></i> View Matched Jobs
-                </a>
-                <a href="/interview-page" class="sp-action-btn sp-action-success">
-                    <i class="bi bi-chat-dots-fill"></i> Mock Interview
-                </a>
-                <a href="/upload_page" class="sp-action-btn sp-action-outline">
-                    <i class="bi bi-arrow-repeat"></i> Re-upload CV
-                </a>
-            </div>
-
-            <!-- Confidence Breakdown -->
-            <div class="sp-confidence-bar-wrap sp-fade-in" style="animation-delay: 0.15s">
-                <div class="sp-conf-header">
-                    <span class="sp-conf-title"><i class="bi bi-bar-chart-fill me-2"></i>Confidence Distribution</span>
-                    <span class="sp-conf-avg">Avg: ${avgProb}%</span>
-                </div>
-                <div class="sp-conf-breakdown">
-                    <div class="sp-conf-seg" style="width: ${(highConf / total) * 100}%; background: linear-gradient(90deg, #10b981, #059669);"></div>
-                    <div class="sp-conf-seg" style="width: ${(medConf / total) * 100}%; background: linear-gradient(90deg, #f59e0b, #d97706);"></div>
-                    <div class="sp-conf-seg" style="width: ${(lowConf / total) * 100}%; background: linear-gradient(90deg, #ef4444, #dc2626);"></div>
-                </div>
-                <div class="sp-conf-legend">
-                    <span class="sp-conf-legend-item"><span class="sp-conf-dot" style="background:#10b981"></span> High ≥70% (${highConf})</span>
-                    <span class="sp-conf-legend-item"><span class="sp-conf-dot" style="background:#f59e0b"></span> Medium 40-69% (${medConf})</span>
-                    <span class="sp-conf-legend-item"><span class="sp-conf-dot" style="background:#ef4444"></span> Low <40% (${lowConf})</span>
-                </div>
-            </div>
-
-            <!-- Core Skills -->
-            <div class="sp-section sp-fade-in" style="animation-delay: 0.2s">
-                <div class="sp-section-header">
-                    <div class="sp-section-icon sp-section-icon-core"><i class="bi bi-star-fill"></i></div>
-                    <h3 class="sp-section-title">Core Skills</h3>
-                    <span class="sp-section-count">${coreSkills.length}</span>
-                </div>
-                <div class="sp-skill-grid">
-                    ${coreSkills.length > 0
-                        ? coreSkills.map((s, i) => _spCard(s, 'core', i)).join('')
-                        : '<p style="color: var(--text-muted); padding: 1rem;">No core skills detected yet.</p>'
-                    }
-                </div>
-            </div>
-
-            <!-- Supporting Skills -->
-            <div class="sp-section sp-fade-in" style="animation-delay: 0.25s">
-                <div class="sp-section-header">
-                    <div class="sp-section-icon sp-section-icon-support"><i class="bi bi-lightning-charge-fill"></i></div>
-                    <h3 class="sp-section-title">Supporting Skills</h3>
-                    <span class="sp-section-count">${otherSkills.length}</span>
-                </div>
-                <div class="sp-skill-grid">
-                    ${otherSkills.length > 0
-                        ? otherSkills.map((s, i) => _spCard(s, 'support', i)).join('')
-                        : '<p style="color: var(--text-muted); padding: 1rem;">No supporting skills detected yet.</p>'
-                    }
-                </div>
-            </div>
-
-            <!-- Growth Suggestions -->
-            ${growthSuggestions.length > 0 ? `
-            <div class="sp-section sp-fade-in" style="animation-delay: 0.3s">
-                <div class="sp-section-header">
-                    <div class="sp-section-icon sp-section-icon-growth"><i class="bi bi-graph-up-arrow"></i></div>
-                    <h3 class="sp-section-title">Growth Suggestions</h3>
-                    <span class="sp-section-count">${growthSuggestions.length}</span>
-                </div>
-                <div class="sp-skill-grid">
-                    ${growthSuggestions.map((s, i) => `
-                        <div class="sp-growth-card sp-fade-in" style="animation-delay: ${0.3 + i * 0.05}s">
-                            <div class="sp-growth-icon"><i class="bi bi-plus-lg"></i></div>
-                            <div>
-                                <div class="sp-growth-name">${escapeHtml(s)}</div>
-                                <div class="sp-growth-desc">Recommended for your role</div>
-                            </div>
-                            <span class="sp-growth-badge">Suggested</span>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-            ` : ''}
-        `;
-
-        container.innerHTML = html;
-
-    } catch (error) {
-        console.error("Failed to load skills profile:", error);
-        container.innerHTML = `
-            <div class="sp-empty sp-fade-in">
-                <div class="sp-empty-icon" style="background: linear-gradient(135deg, rgba(239,68,68,0.1), rgba(220,38,38,0.1));">
-                    <i class="bi bi-exclamation-triangle" style="color: #ef4444;"></i>
-                </div>
-                <h2 class="sp-empty-title">Failed to Load</h2>
-                <p class="sp-empty-text">There was an error loading your skills profile. Please try refreshing the page.</p>
-                <button class="sp-empty-btn" onclick="location.reload()">
-                    <i class="bi bi-arrow-clockwise"></i> Retry
-                </button>
-            </div>`;
-    }
-}
-
-function _spGenerateGrowth(currentSkills, role) {
-    const currentNames = new Set(currentSkills.map(s => s.name.toLowerCase()));
-    const normalizedRole = (role || '').toLowerCase();
-    let suggestions = [];
-
-    if (normalizedRole.includes('sales') || normalizedRole.includes('bán hàng') || normalizedRole.includes('business development')) {
-        suggestions = ['CRM', 'Lead Generation', 'Negotiation', 'Customer Relationship Management', 'Sales Forecasting', 'Communication', 'Market Research', 'Presentation Skills'];
-    } else if (normalizedRole.includes('account') || normalizedRole.includes('finance') || normalizedRole.includes('tài chính') || normalizedRole.includes('kế toán')) {
-        suggestions = ['Excel', 'Financial Reporting', 'Budgeting', 'Accounting Software', 'Compliance', 'Audit', 'Financial Analysis', 'Cost Analysis'];
-    } else if (normalizedRole.includes('developer') || normalizedRole.includes('engineer') || normalizedRole.includes('programmer') || normalizedRole.includes('devops') || normalizedRole.includes('cntt')) {
-        suggestions = ['Cloud Computing', 'Docker', 'Kubernetes', 'CI/CD', 'API Development', 'Microservices', 'System Design', 'Machine Learning'];
-    } else if (normalizedRole.includes('marketing') || normalizedRole.includes('thị trường')) {
-        suggestions = ['Digital Marketing', 'SEO', 'Content Marketing', 'Social Media Marketing', 'Analytics', 'Google Analytics', 'A/B Testing', 'Brand Strategy'];
-    } else if (normalizedRole.includes('hr') || normalizedRole.includes('nhân sự')) {
-        suggestions = ['Recruitment', 'Employee Relations', 'Performance Management', 'Payroll', 'Training & Development', 'HRIS', 'Labor Laws', 'Conflict Resolution'];
-    } else if (normalizedRole.includes('manager') || normalizedRole.includes('lead') || normalizedRole.includes('director') || normalizedRole.includes('quản lý')) {
-        suggestions = ['Project Management', 'Team Leadership', 'Strategic Planning', 'Decision Making', 'Mentoring', 'Budget Management', 'Risk Management', 'Agile Methodology'];
-    } else {
-        suggestions = ['Communication', 'Problem Solving', 'Project Management', 'Excel', 'Time Management', 'Leadership', 'Teamwork', 'Data Analysis'];
-    }
-
-    return suggestions.filter(s => !currentNames.has(s.toLowerCase())).slice(0, 6);
-}

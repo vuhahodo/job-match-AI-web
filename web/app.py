@@ -483,6 +483,14 @@ def log_activity(atype, title, subtitle):
     data['activity'] = data['activity'][:15] # Keep last 15
     save_dashboard_data(data)
 
+@app.route('/api/status')
+def system_status():
+    """Check if the system has finished initializing"""
+    return jsonify({
+        'ready': state.get('is_ready', False),
+        'jobs_loaded': len(state['job_nodes']) if state.get('job_nodes') else 0,
+    })
+
 @app.route('/')
 def index():
     """Home page"""
