@@ -13,6 +13,10 @@ import uuid
 from werkzeug.security import generate_password_hash, check_password_hash
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import normalize
+import matplotlib
+matplotlib.use('Agg') # Non-interactive backend
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
 from config import (
     TOPK_USER_JOB, CORE_SKILLS_CANON, SIM_THRESHOLD, 
@@ -203,6 +207,40 @@ app_state = {
     'valid_job_nodes': None,
     'is_ready': False,  # Tracking initialization
 }
+
+
+def _score_color_mapper(min_score, max_score):
+    """Create a monotonic score->color mapper used by both /graph and /results.
+
+    Higher score => darker node color.
+    """
+    def hex_to_rgb(h):
+        h = h.lstrip('#')
+        return tuple(int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+
+    def rgb_to_hex(rgb):
+        return '#%02x%02x%02x' % tuple(int(max(0, min(1, c)) * 255) for c in rgb)
+
+    light_hex = '#fff5e6'
+    dark_hex = '#6b0018'
+    light_rgb = hex_to_rgb(light_hex)
+    dark_rgb = hex_to_rgb(dark_hex)
+
+    def norm_score(score):
+        if max_score > min_score:
+            t = (float(score) - float(min_score)) / (float(max_score) - float(min_score))
+        else:
+            t = 1.0
+        return max(0.0, min(1.0, t))
+
+    def color_for(score, gamma=2.6):
+        t = norm_score(score) ** float(gamma)
+        r = light_rgb[0] + (dark_rgb[0] - light_rgb[0]) * t
+        g = light_rgb[1] + (dark_rgb[1] - light_rgb[1]) * t
+        b = light_rgb[2] + (dark_rgb[2] - light_rgb[2]) * t
+        return rgb_to_hex((r, g, b))
+
+    return color_for
 
 # Session-scoped state (user-specific)
 SESSION_TTL_SECONDS = int(os.environ.get('SESSION_TTL_SECONDS', '3600'))
@@ -652,13 +690,27 @@ def results():
     if user_state.get('scores') is None:
         return jsonify([])
 
+    score_slice = user_state['scores'][:TOPK_USER_JOB]
+    score_values = [float(sc) for _, sc, _ in score_slice]
+    min_score = min(score_values) if score_values else 0.0
+    max_score = max(score_values) if score_values else 1.0
+    color_for = _score_color_mapper(min_score, max_score)
+
     results_data = []
-    for rank, (j, sc, ex) in enumerate(user_state['scores'][:TOPK_USER_JOB], start=1):
+    for rank, (j, sc, ex) in enumerate(score_slice, start=1):
         job_title = short_label(app_state['job_info'][j]['title'], 90)
+
+        hex_color = color_for(sc)
+        cr, cg, cb = tuple(int(hex_color.lstrip('#')[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+        shadow_rgb = (cr * 0.5, cg * 0.5, cb * 0.5)
+        shadow_hex = '#%02x%02x%02x' % tuple(int(max(0, min(1, c)) * 255) for c in shadow_rgb)
+
         results_data.append({
             'rank': rank,
             'id': j,
             'score': sc,
+            'color': hex_color,
+            'shadow': shadow_hex,
             'title': job_title,
             'full_title': app_state['job_info'][j]['title'],
             'city': app_state['job_info'][j]['city'],
@@ -995,17 +1047,75 @@ def graph_data():
         from visualization.graph_visualization import clean_focus_layout
         pos = clean_focus_layout(H, center_node)
 
+        def _safe_float(val, default=0.0):
+            try:
+                if val is None:
+                    return default
+                f = float(val)
+                if np.isnan(f) or np.isinf(f):
+                    return default
+                return f
+            except Exception:
+                return default
+
         # --- serialize nodes
+        # Collect job scores from MATCHES_JOB edges so heatmap reflects real match score.
+        job_scores = {}
+        for u, v, d in H.edges(data=True):
+            if u == USER_ID and d.get("rel") == "MATCHES_JOB":
+                job_scores[v] = _safe_float(d.get("score"), 0.0)
+
+        # Fallback for defensive safety if edge score is unavailable.
+        if not job_scores:
+            job_scores = {
+                n: _safe_float(H.nodes[n].get("score", 0.0), 0.0)
+                for n in H.nodes()
+                if H.nodes[n].get("ntype") == "JobPosting"
+            }
+
+        score_values = list(job_scores.values())
+        min_score = min(score_values) if score_values else 0.0
+        max_score = max(score_values) if score_values else 1.0
+        cmap = plt.get_cmap('YlOrRd')
+
+        # Use Normalize for mapping, but to guarantee monotonic perceived darkness
+        # we'll interpolate between a light and dark color in RGB space.
+        from matplotlib.colors import Normalize
+        norm = Normalize(vmin=min_score, vmax=max_score) if max_score > min_score else Normalize(vmin=0.0, vmax=1.0)
+
         nodes = []
         for n in H.nodes():
             x, y = pos.get(n, (0.0, 0.0))
-            nodes.append({
+            node_data = {
                 "id": n,
-                "label": H.nodes[n].get("label", ""),
+                "label": str(H.nodes[n].get("label", "") or ""),
                 "ntype": H.nodes[n].get("ntype", "Other"),
-                "x": float(x),
-                "y": float(y)
-            })
+                "x": _safe_float(x, 0.0),
+                "y": _safe_float(y, 0.0)
+            }
+            
+            # Add heatmap color for job nodes
+            if node_data["ntype"] == "JobPosting":
+                # Ensure job name is always present for rendering labels on graph.
+                info = app_state.get('job_info', {}).get(n, {})
+                full_title = str(info.get('title', '') or node_data["label"] or n)
+                node_data["full_title"] = full_title
+                if not node_data["label"].strip():
+                    node_data["label"] = short_label(full_title, 90)
+
+                score = job_scores.get(n, 0.0)
+                node_data["score"] = score
+
+                # Map score -> color via interpolation to guarantee monotonic darkness
+                color_for = _score_color_mapper(min_score, max_score)
+                color_hex = color_for(score)
+                node_data["color"] = color_hex
+                # shadow: darker variant
+                cr, cg, cb = tuple(int(color_hex.lstrip('#')[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+                shadow_rgb = (cr * 0.5, cg * 0.5, cb * 0.5)
+                node_data["shadow"] = '#%02x%02x%02x' % tuple(int(max(0, min(1, c)) * 255) for c in shadow_rgb)
+                
+            nodes.append(node_data)
 
         # --- serialize edges
         links = []
@@ -1014,8 +1124,8 @@ def graph_data():
                 "source": u,
                 "target": v,
                 "rel": d.get("rel"),
-                "score": d.get("score"),
-                "prob": d.get("prob")
+                "score": _safe_float(d.get("score"), None),
+                "prob": _safe_float(d.get("prob"), None)
             })
 
         return jsonify({
