@@ -233,7 +233,7 @@ def _score_color_mapper(min_score, max_score):
             t = 1.0
         return max(0.0, min(1.0, t))
 
-    def color_for(score, gamma=1.0):
+    def color_for(score, gamma=2.6):
         t = norm_score(score) ** float(gamma)
         r = light_rgb[0] + (dark_rgb[0] - light_rgb[0]) * t
         g = light_rgb[1] + (dark_rgb[1] - light_rgb[1]) * t
@@ -1082,29 +1082,6 @@ def graph_data():
         # we'll interpolate between a light and dark color in RGB space.
         from matplotlib.colors import Normalize
         norm = Normalize(vmin=min_score, vmax=max_score) if max_score > min_score else Normalize(vmin=0.0, vmax=1.0)
-
-        def hex_to_rgb(h):
-            h = h.lstrip('#')
-            return tuple(int(h[i:i+2], 16)/255.0 for i in (0, 2, 4))
-
-        def rgb_to_hex(rgb):
-            return '#%02x%02x%02x' % tuple(int(max(0, min(1, c)) * 255) for c in rgb)
-
-        # Light -> Dark colors for interpolation (feel free to tweak)
-        light_hex = '#fff5e6'  # pale warm
-        dark_hex = '#6b0018'   # deep maroon
-        light_rgb = hex_to_rgb(light_hex)
-        dark_rgb = hex_to_rgb(dark_hex)
-
-        def interp_color(t, gamma=1.0):
-            # t in [0,1], 0->light, 1->dark
-            # apply gamma (>1 increases contrast at high end)
-            t = max(0.0, min(1.0, float(t)))
-            t = t ** float(gamma)
-            r = light_rgb[0] + (dark_rgb[0] - light_rgb[0]) * t
-            g = light_rgb[1] + (dark_rgb[1] - light_rgb[1]) * t
-            b = light_rgb[2] + (dark_rgb[2] - light_rgb[2]) * t
-            return rgb_to_hex((r, g, b))
 
         nodes = []
         for n in H.nodes():
