@@ -84,7 +84,14 @@ async function initializeGraph(force = false) {
         const response = await fetch('/graph');
 
         if (!response.ok) {
-            graphContainer.innerHTML = `<div style="padding: 20px; color: red;">Failed to load graph (${response.status}).</div>`;
+            let detail = '';
+            try {
+                const errData = await response.json();
+                detail = errData?.error ? `: ${errData.error}` : '';
+            } catch (_) {
+                // Keep generic message when backend does not return JSON.
+            }
+            graphContainer.innerHTML = `<div style="padding: 20px; color: red;">Failed to load graph (${response.status})${detail}</div>`;
             return;
         }
 
@@ -107,38 +114,54 @@ async function initializeGraph(force = false) {
         // ── Scale factor for layout ──
         const SCALE = 550;
 
+        function isColorDark(hexcolor) {
+            if (!hexcolor || hexcolor.length < 7) return false;
+            try {
+                const r = parseInt(hexcolor.slice(1, 3), 16);
+                const g = parseInt(hexcolor.slice(3, 5), 16);
+                const b = parseInt(hexcolor.slice(5, 7), 16);
+                const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+                return (yiq < 128);
+            } catch (e) {
+                return false;
+            }
+        }
+
         // ── Process nodes ──
         const visNodes = data.nodes.map(node => {
             const nodeType = node.ntype || "Other";
-            const color = NODE_COLOR_MAP[nodeType] || "#E0E0E0";
+            let color = node.color || NODE_COLOR_MAP[nodeType] || "#E0E0E0";
 
             // Node size by type
             let size = 22;
             if (nodeType === "User")       size = 45;
-            if (nodeType === "JobPosting") size = 35;
+            if (nodeType === "JobPosting") size = 38; // Slightly larger for jobs
             if (nodeType === "Skill")      size = 24;
             if (nodeType === "Company")    size = 28;
             if (nodeType === "Location")   size = 24;
 
             return {
                 id: node.id,
-                label: node.label,
-                title: `${nodeType}: ${node.label}`,
+                label: nodeType === 'JobPosting'
+                    ? (node.label || node.full_title || 'Job')
+                    : (node.label || ''),
+                title: `${nodeType}: ${node.full_title || node.label || ''}${node.score ? ' (Score: ' + (node.score*100).toFixed(0) + '%)' : ''}`,
+                size: size,
                 color: {
                     background: color,
-                    border: nodeType === 'User' ? '#d32f2f' : '#555',
+                    border: nodeType === 'User' ? '#d32f2f' : (node.shadow || '#555'),
                     highlight: { background: color, border: '#14f30c' }
                 },
-                size: size,
-                // Flip Y so that the orientation matches the Matplotlib image
                 x:  node.x * SCALE,
                 y: -node.y * SCALE,
                 fixed: { x: true, y: true },
                 font: {
-                    size: nodeType === 'User' ? 16 : (nodeType === 'JobPosting' ? 13 : 11),
-                    color: '#000',
+                    // Job titles: always black text per request. Node background remains heatmap-driven.
+                    color: nodeType === 'User' ? '#ffffff' : (nodeType === 'JobPosting' ? '#000000' : '#333333'),
                     face: 'Arial',
-                    background: 'rgba(255, 255, 255, 0.85)'
+                    background: 'transparent',
+                    strokeWidth: 0,
+                    strokeColor: 'transparent'
                 },
                 borderWidth: nodeType === 'User' ? 3 : 2,
                 shadow: {

@@ -10,3 +10,4 @@ pdfplumber
 pytesseract
 Pillow
 Werkzeug
+matplotlib

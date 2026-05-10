@@ -150,6 +150,47 @@
     [data-theme="dark"] .skill-missing-item {
         background: rgba(239, 68, 68, 0.05);
     }
+
+    /* CV Panel */
+    .cv-panel {
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        border-radius: 1rem;
+        background: rgba(59, 130, 246, 0.03);
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .cv-panel-header {
+        background: linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(124, 58, 237, 0.08) 100%);
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .cv-text-block {
+        max-height: 380px;
+        overflow-y: auto;
+        font-size: 0.8rem;
+        line-height: 1.65;
+        white-space: pre-wrap;
+        word-break: break-word;
+        padding: 1rem;
+        color: var(--text-color, #374151);
+    }
+
+    .cv-text-block::-webkit-scrollbar { width: 5px; }
+    .cv-text-block::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    [data-theme="dark"] .cv-panel {
+        background: rgba(30, 41, 59, 0.4);
+        border-color: rgba(99, 102, 241, 0.2);
+    }
+
+    [data-theme="dark"] .cv-text-block {
+        color: #e2e8f0;
+    }
 </style>
 {% endblock %}
 
@@ -194,7 +235,7 @@
 <div class="container pb-5" style="margin-top: 2.6rem;">
     <div class="row g-4">
         <!-- Left Side: Job Content -->
-        <div class="col-lg-7">
+        <div class="col-lg-6">
             <div class="job-detail-card p-4 p-md-5">
                 <div class="mb-5">
                     <h3 class="job-section-title d-flex align-items-center gap-2 mb-4">
@@ -230,12 +271,35 @@
         </div>
 
         <!-- Right Side: AI Analysis & Skills -->
-        <div class="col-lg-5">
+        <div class="col-lg-6">
             <div class="sticky-top" style="top: 6rem; z-index: 10;">
                 <div class="job-detail-card p-4 mb-4">
-                    <h4 class="fw-bold mb-4 d-flex align-items-center gap-2">
-                        <i class="bi bi-stars text-warning"></i> AI Assessment
-                    </h4>
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h4 class="fw-bold mb-0 d-flex align-items-center gap-2">
+                            <i class="bi bi-stars text-warning"></i> AI Assessment
+                        </h4>
+                        <button id="showCvBtn" class="btn btn-sm btn-outline-info rounded-pill px-3" onclick="toggleCVPanel()">
+                            <i class="bi bi-file-person me-1"></i> Show CV
+                        </button>
+                    </div>
+
+                    <!-- CV Panel (hidden by default) -->
+                    <div id="cvPanel" class="cv-panel mb-4" style="display:none;">
+                        <div class="cv-panel-header">
+                            <span class="small fw-bold text-primary">
+                                <i class="bi bi-file-earmark-text me-1"></i>
+                                <span id="cvPanelFilename">Your CV</span>
+                            </span>
+                            <button class="btn btn-sm btn-link text-muted p-0" onclick="toggleCVPanel()">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                        <div id="cvPanelText" class="cv-text-block">
+                            <div class="text-center text-muted py-3">
+                                <div class="spinner-border spinner-border-sm me-2"></div> Loading CV...
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="d-flex flex-column align-items-center mb-4">
                         <div id="scoreCircle" class="score-circle mb-3">
@@ -309,6 +373,38 @@
 </div>
 
 <script>
+// ── Show CV Toggle ──
+let cvLoaded = false;
+
+async function toggleCVPanel() {
+    const panel = document.getElementById('cvPanel');
+    const btn = document.getElementById('showCvBtn');
+    const textEl = document.getElementById('cvPanelText');
+    const filenameEl = document.getElementById('cvPanelFilename');
+
+    const isHidden = panel.style.display === 'none';
+    panel.style.display = isHidden ? 'block' : 'none';
+    btn.innerHTML = isHidden
+        ? '<i class="bi bi-eye-slash me-1"></i> Hide CV'
+        : '<i class="bi bi-file-person me-1"></i> Show CV';
+
+    if (isHidden && !cvLoaded) {
+        cvLoaded = true;
+        try {
+            const res = await fetch('/api/cv-full');
+            const data = await res.json();
+            if (data.active && data.cv_text) {
+                filenameEl.textContent = data.filename || 'Your CV';
+                textEl.textContent = data.cv_text;
+            } else {
+                textEl.innerHTML = '<div class="text-center text-warning py-3"><i class="bi bi-exclamation-triangle me-1"></i>No CV uploaded yet.</div>';
+            }
+        } catch (e) {
+            textEl.innerHTML = '<div class="text-center text-danger py-3"><i class="bi bi-x-circle me-1"></i>Failed to load CV.</div>';
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // Animate Score Circle
     const targetScore = {{ (job.score * 100) | round | int }};

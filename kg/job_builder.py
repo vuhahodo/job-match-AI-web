@@ -29,8 +29,9 @@ def build_job_nodes(G, df, job_info=None, rdf=None, ex_ns=None):
         role_raw_n = f"role_raw::{sid('role_raw', role_raw)}"
         comp_n = f"company::{sid('company', company)}"
 
-        # Use role_can as the display label for job nodes if available
-        job_label = role_can if role_can != "Unknown" else title
+        # Use the full job title as the display label for job nodes
+        # (previously used `role_can` which caused multiple postings to show identical labels)
+        job_label = title
         add_node(G, job_n, "JobPosting", job_label, rdf=rdf, ex_ns=ex_ns, job_id=str(jid), url=str(r["job_url"]), role_can=role_can)
         add_node(G, role_can_n, "JobRoleCanonical", role_can, rdf=rdf, ex_ns=ex_ns)
         add_node(G, role_raw_n, "JobRoleRaw", role_raw, rdf=rdf, ex_ns=ex_ns)
