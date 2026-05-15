@@ -804,8 +804,8 @@
         updateAllTemplates();
     });
 
-    // Download CV as PDF function
-    function downloadCV() {
+    // Download CV as PDF function using html2pdf
+    async function downloadCV() {
         const visibleTemplate = document.querySelector('.cv-template:not(.d-none)');
         if (!visibleTemplate) {
             showToast('Error', 'No CV template found!');
@@ -814,88 +814,66 @@
 
         const btn = document.getElementById('downloadPdfBtn');
         const originalHtml = btn.innerHTML;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Preparing PDF...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Generating PDF...';
         btn.disabled = true;
 
-        // Clean up any old print containers
-        const oldContainer = document.getElementById('cv-print-container');
-        if (oldContainer) oldContainer.remove();
-        const oldStyle = document.getElementById('cv-print-style');
-        if (oldStyle) oldStyle.remove();
+        const userName = document.getElementById('cvName').value || 'User';
+        const fileName = `${userName.replace(/\s+/g, '_')}_CV.pdf`;
 
-        // 1. Create a dedicated container for printing
+        // Create a dedicated container for PDF generation (hidden from view)
         const printContainer = document.createElement('div');
-        printContainer.id = 'cv-print-container';
+        printContainer.style.position = 'absolute';
+        printContainer.style.left = '-9999px';
+        printContainer.style.top = '0';
+        printContainer.style.width = '210mm'; // Standard A4 width
         
-        // Clone the template and enforce A4 dimensions
-        const clonedTemplate = visibleTemplate.cloneNode(true);
-        clonedTemplate.style.width = '210mm';
-        clonedTemplate.style.minHeight = '297mm';
-        clonedTemplate.style.margin = '0 auto';
-        clonedTemplate.style.boxShadow = 'none';
-        clonedTemplate.style.borderRadius = '0';
-        clonedTemplate.style.transform = 'none';
+        // Clone the template and strip UI-specific styles
+        const element = visibleTemplate.cloneNode(true);
+        element.style.width = '210mm';
+        element.style.minHeight = '297mm';
+        element.style.margin = '0';
+        element.style.borderRadius = '0';
+        element.style.boxShadow = 'none';
+        element.style.display = 'block'; // Ensure it's visible to the engine
         
-        printContainer.appendChild(clonedTemplate);
+        printContainer.appendChild(element);
         document.body.appendChild(printContainer);
+        
+        // Configuration for html2pdf
+        const opt = {
+            margin: 0,
+            filename: fileName,
+            image: { type: 'jpeg', quality: 1 },
+            html2canvas: { 
+                scale: 2, 
+                useCORS: true, 
+                letterRendering: true,
+                backgroundColor: '#ffffff',
+                scrollY: 0
+            },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
 
-        // 2. Inject bulletproof print CSS
-        const printStyle = document.createElement('style');
-        printStyle.id = 'cv-print-style';
-        printStyle.innerHTML = `
-            @media screen {
-                #cv-print-container { display: none !important; }
+        try {
+            // Check if html2pdf is loaded
+            if (typeof html2pdf === 'undefined') {
+                throw new Error('PDF Engine not loaded yet. Please wait a moment and try again.');
             }
-            @media print {
-                /* Hide EVERYTHING in the body except our print container */
-                body > *:not(#cv-print-container):not(#cv-print-style):not(script) {
-                    display: none !important;
-                }
-                
-                body {
-                    background: #fff !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                }
-                
-                #cv-print-container {
-                    display: block !important;
-                    position: absolute !important;
-                    left: 0 !important;
-                    top: 0 !important;
-                    width: 100% !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    background: #fff !important;
-                }
-                
-                @page { 
-                    size: A4 portrait; 
-                    margin: 0; 
-                }
-                
-                * { 
-                    -webkit-print-color-adjust: exact !important; 
-                    print-color-adjust: exact !important; 
-                    color-adjust: exact !important; 
-                }
-            }
-        `;
-        document.head.appendChild(printStyle);
 
-        // 3. Wait a tiny bit for the browser to parse the new node/styles, then print
-        setTimeout(() => {
-            window.print();
+            // Generate and save
+            await html2pdf().set(opt).from(element).save();
+            showToast('Success', 'PDF downloaded successfully!', 'success');
+        } catch (error) {
+            console.error('PDF Generation Error:', error);
+            showToast('Error', error.message || 'Failed to generate PDF. Trying native print...', 'warning');
             
-            // 4. Cleanup after print dialog opens/closes
-            setTimeout(() => {
-                if (printContainer.parentNode) printContainer.remove();
-                if (printStyle.parentNode) printStyle.remove();
-                btn.innerHTML = originalHtml;
-                btn.disabled = false;
-            }, 1000);
-            
-            showToast('Success', 'PDF Print Dialog Opened!', 'success');
-        }, 300);
+            // Fallback to native print if direct download fails
+            setTimeout(() => { window.print(); }, 1000);
+        } finally {
+            // Cleanup
+            if (printContainer.parentNode) document.body.removeChild(printContainer);
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }
     }
 </script>

@@ -205,29 +205,45 @@
                 const data = await response.json();
 
                 if (data.jobs && data.jobs.length > 0) {
-                    container.innerHTML = data.jobs.map(job => `
-                        <div class="col-md-4">
-                            <div class="card h-100 border-0 shadow-sm hover-lift transition-all">
-                                <div class="card-body p-4 d-flex flex-column h-100">
-                                    <div class="d-flex justify-content-between mb-3">
-                                        <div class="bg-light rounded p-2">
-                                            <i class="bi bi-building text-primary fs-4"></i>
+                        const companySeed = encodeURIComponent(job.company || 'Job');
+                        const logoUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${companySeed}&backgroundColor=3b82f6,06b6d4,8b5cf6&backgroundType=gradientLinear&fontSize=45&fontWeight=700`;
+                        
+                        return `
+                        <div class="col-md-4 mb-4">
+                            <div class="premium-job-card h-100 flex-column p-4" style="gap: 1rem;">
+                                <!-- Top Row -->
+                                <div class="d-flex justify-content-between align-items-start w-100">
+                                    <div class="premium-logo-container" style="width: 50px; height: 50px; padding: 0; background: #f1f5f9; overflow: hidden;">
+                                        <img src="${logoUrl}" alt="${job.company}" style="width: 100%; height: 100%; object-fit: cover;">
+                                    </div>
+                                    <span class="badge ${job.badge_class || 'bg-primary-soft text-primary'} px-3 py-2 rounded-pill small" style="font-size: 0.7rem;">${job.work_type}</span>
+                                </div>
+                                
+                                <div class="job-info-main d-flex flex-column flex-grow-1">
+                                    <h5 class="job-title-premium text-truncate mb-1" style="font-size: 1.1rem;" title="${job.title}">${job.title}</h5>
+                                    
+                                    <div class="company-meta mb-2">
+                                        <span class="text-dark fw-bold extra-small text-truncate" style="max-width: 150px;">${job.company}</span>
+                                        <div class="meta-divider"></div>
+                                        <span class="text-muted extra-small">${job.location}</span>
+                                    </div>
+                                    
+                                    <div class="tag-container mb-3">
+                                        ${(job.skills || []).slice(0, 2).map(skill => `<span class="premium-tag extra-small" style="padding: 0.2rem 0.5rem;"><i class="bi bi-hash"></i> ${skill}</span>`).join('')}
+                                    </div>
+                                    
+                                    <!-- Bottom Row -->
+                                    <div class="mt-auto pt-3 border-top d-flex justify-content-between align-items-center w-100">
+                                        <span class="fw-bold text-primary small">${job.salary}</span>
+                                        <div class="action-group" style="margin-top: 0; gap: 0.4rem;">
+                                            <a href="/job-detail/${job.id}" class="btn btn-premium-outline px-2 py-1 extra-small" style="min-width: 50px;">View</a>
+                                            <a href="${job.url || '#'}" target="_blank" class="btn btn-premium-fill px-2 py-1 extra-small" style="min-width: 50px;">Apply</a>
                                         </div>
-                                        <span class="badge ${job.badge_class} px-3 py-2 rounded-pill">${job.work_type}</span>
-                                    </div>
-                                    <h5 class="fw-bold mb-1" title="${job.title}">${job.title}</h5>
-                                    <p class="text-muted small mb-3">${job.company} • ${job.location}</p>
-                                    <div class="d-flex flex-wrap gap-2 mb-3">
-                                        ${job.skills.map(skill => `<span class="badge bg-light text-dark fw-normal">${skill}</span>`).join('')}
-                                    </div>
-                                    <div class="d-flex justify-content-between align-items-center pt-3 border-top mt-auto">
-                                        <span class="fw-bold text-dark">${job.salary}</span>
-                                        <a href="${job.url || '#'}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill">Apply</a>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    `).join('');
+                    `}).join('');
                 } else {
                     container.innerHTML = `
                         <div class="col-12 text-center py-5">

@@ -255,12 +255,21 @@
 
     <!-- ── KNOWLEDGE GRAPH ── -->
     <div id="graph-section">
-        <div class="d-flex align-items-center gap-2 mb-3 mt-2">
-            <div style="width: 3px; height: 20px; background: linear-gradient(180deg, #f59e0b, #ef4444); border-radius: 3px;"></div>
-            <h5 class="fw-bold mb-0">Knowledge Graph Visualization</h5>
+        <div class="d-flex align-items-center justify-content-between mb-3 mt-2">
+            <div class="d-flex align-items-center gap-2">
+                <div style="width: 3px; height: 20px; background: linear-gradient(180deg, #f59e0b, #ef4444); border-radius: 3px;"></div>
+                <h5 class="fw-bold mb-0">Interactive Intelligence Graph</h5>
+            </div>
+            <div class="small text-muted d-none d-md-block">
+                <i class="bi bi-info-circle me-1"></i> Drag to explore • Scroll to zoom
+            </div>
         </div>
         <div id="graph-container"
-            style="height: 600px; border: 1px solid #e0e0e0; border-radius: 8px; background: #fafafa;"></div>
+            class="shadow-lg rounded-4 overflow-hidden"
+            style="height: 600px; border: 1px solid rgba(0,0,0,0.05); background: #ffffff; position: relative;">
+            <!-- Subtle Grid Background -->
+            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: radial-gradient(circle, #eee 1px, transparent 1px); background-size: 20px 20px; opacity: 0.5; pointer-events: none;"></div>
+        </div>
     </div>
 </div>
 

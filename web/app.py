@@ -873,6 +873,7 @@ def _get_job_detail_data(job_id):
             'matched_skills': xai['evidence']['matched_skills'][:15],
             'missing_skills': [
                 {
+                    'skill': s['skill'],
                     'name': s['skill'],
                     'tip': f"Focus on {s['skill']} to improve your profile.",
                     'url': f"https://www.google.com/search?q=learn+{s['skill']}+online+course"

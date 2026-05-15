@@ -330,7 +330,8 @@ function renderKanbanColumn(key, colId) {
     if (!col) return;
 
     col.innerHTML = KANBAN_DATA[key].map(item => `
-        <div class="card border-0 shadow-sm mb-3 kanban-card draggable" draggable="true" data-id="${item.id}" data-origin="${key}">
+        <div class="card border-0 shadow-sm mb-3 kanban-card draggable" draggable="true" data-id="${item.id}" data-origin="${key}" 
+             ${item.job_id ? `onclick="window.location.href='/job-detail/${item.job_id}'" style="cursor: pointer;"` : ''}>
             <div class="card-body p-3">
                 <h6 class="fw-bold mb-1 text-truncate">${item.title}</h6>
                 <div class="text-muted small mb-2">${item.company}</div>
@@ -467,38 +468,45 @@ function setupSearch() {
     ];
 
     if (resultsDiv) {
-        resultsDiv.innerHTML = jobs.map(job => `
-            <div class="col-12">
-                <div class="card job-search-card border-0 shadow-sm rounded-4 overflow-hidden transition-hover">
-                    <div class="card-body p-4">
-                        <div class="d-flex align-items-start gap-4">
-                            <div class="company-logo rounded-4 p-2 bg-light d-flex align-items-center justify-content-center" style="width: 64px; height: 64px; flex-shrink: 0;">
-                                <img src="${job.logo}" class="img-fluid rounded-3" alt="logo">
-                            </div>
-                            <div class="flex-grow-1">
-                                <div class="d-flex justify-content-between align-items-start mb-1">
-                                    <h5 class="fw-bold mb-0">${job.title}</h5>
-                                    <span class="text-primary fw-bold">${job.salary}</span>
-                                </div>
-                                <div class="text-muted small mb-3">
-                                    <span class="fw-bold text-dark">${job.company}</span>
-                                    <span class="mx-2">•</span>
-                                    <i class="bi bi-geo-alt me-1"></i> ${job.loc}
-                                    <span class="mx-2">•</span>
-                                    <i class="bi bi-clock me-1"></i> ${job.type}
-                                </div>
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div class="d-flex gap-2">
-                                        ${job.tags.map(t => `<span class="badge bg-light text-dark border-0 rounded-pill px-3 py-2 small">${t}</span>`).join('')}
-                                    </div>
-                                    <button class="btn btn-primary rounded-pill px-4 fw-bold">Apply Now</button>
-                                </div>
-                            </div>
+        resultsDiv.innerHTML = jobs.map((job, index) => {
+            const logoUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(job.company)}&backgroundColor=3b82f6,06b6d4,8b5cf6&backgroundType=gradientLinear&fontSize=45&fontWeight=700`;
+            const scorePercent = 75 + Math.floor(Math.random() * 20); // Mock score for search demo
+            return `
+            <div class="col-12 mb-3">
+                <div class="premium-job-card" style="--match-percent: ${scorePercent}%">
+                    <div class="premium-logo-container" style="background: #f1f5f9; padding: 0; overflow: hidden;">
+                        <img src="${logoUrl}" alt="${job.company}" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+                    
+                    <div class="job-info-main">
+                        <h5 class="job-title-premium">${job.title}</h5>
+                        <div class="company-meta">
+                            <span class="fw-bold text-dark">${job.company}</span>
+                            <div class="meta-divider"></div>
+                            <i class="bi bi-geo-alt me-1"></i> ${job.loc}
+                            <div class="meta-divider"></div>
+                            <span class="text-primary fw-bold">${job.salary}</span>
+                        </div>
+                        
+                        <div class="tag-container">
+                            <span class="premium-tag work-type"><i class="bi bi-clock"></i> ${job.type}</span>
+                            ${job.tags.map(t => `<span class="premium-tag"><i class="bi bi-hash"></i> ${t}</span>`).join('')}
+                        </div>
+                        
+                        <div class="action-group">
+                            <button class="btn btn-premium-fill">Apply Now</button>
+                            <button class="btn btn-premium-outline">Details</button>
+                        </div>
+                    </div>
+
+                    <div class="match-score-wrapper">
+                        <div class="match-score-circle">
+                            <span class="match-score-value">${scorePercent}%</span>
                         </div>
                     </div>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
     }
 }
 
@@ -506,7 +514,7 @@ function setupSearch() {
 function setupUploadForm() {
     const form = document.getElementById('uploadForm');
     const fileInput = document.getElementById('pdfFile');
-    const uploadArea = document.querySelector('.upload-area');
+    const uploadArea = document.querySelector('.upload-area, .upload-area-premium');
 
     if (!form || !fileInput) return;
 
@@ -676,30 +684,49 @@ async function loadResults() {
             `;
 
             results.forEach((job, index) => {
+                const logoSeed = encodeURIComponent(job.company || 'Job');
+                const logoUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${logoSeed}&backgroundColor=3b82f6,06b6d4,8b5cf6&backgroundType=gradientLinear&fontSize=45&fontWeight=700`;
+                const scorePercent = (job.score * 100).toFixed(0);
+                
                 html += `
-                    <div class="job-card d-flex align-items-center justify-content-between fade-in" style="animation-delay: ${index * 0.1}s">
-                        <div class="d-flex align-items-center">
-                            <div class="badge-score me-4 fs-5">${(job.score * 100).toFixed(0)}%</div>
-                            <div>
-                                <h5 class="fw-bold mb-1">${job.title}</h5>
-                                <div class="text-secondary mb-1">
-                                    <i class="bi bi-building me-2"></i>${job.company}
-                                    <span class="mx-2">•</span>
-                                    <i class="bi bi-geo-alt me-2"></i>${job.city}
+                    <div class="col-12 mb-4">
+                        <div class="premium-job-card fade-in" style="animation-delay: ${index * 0.1}s; --match-percent: ${scorePercent}%">
+                            <div class="premium-logo-container" style="background: #f1f5f9; padding: 0; overflow: hidden;">
+                                <img src="${logoUrl}" alt="${job.company}" style="width: 100%; height: 100%; object-fit: cover;">
+                            </div>
+                            
+                            <div class="job-info-main">
+                                <h5 class="job-title-premium">${job.title}</h5>
+                                <div class="company-meta">
+                                    <span class="fw-bold text-dark">${job.company}</span>
+                                    <div class="meta-divider"></div>
+                                    <i class="bi bi-geo-alt me-1"></i> ${job.city}
+                                    <div class="meta-divider"></div>
+                                    <i class="bi bi-briefcase me-1"></i> AI Recommendation
                                 </div>
-                                <div class="small text-success">
-                                    <i class="bi bi-graph-up-arrow me-1"></i> High text similarity
+                                
+                                <div class="tag-container">
+                                    <span class="premium-tag work-type"><i class="bi bi-clock"></i> Full-time</span>
+                                    <span class="premium-tag location"><i class="bi bi-building"></i> Hybrid</span>
+                                    ${(job.matched_skills || []).slice(0, 3).map(s => `<span class="premium-tag"><i class="bi bi-check2-circle"></i> ${s.skill}</span>`).join('')}
+                                </div>
+                                
+                                <div class="action-group">
+                                    <button class="btn btn-premium-fill" onclick="window.location.href='/job-detail/${job.id}'">View Analysis</button>
+                                    <a href="${job.url}" target="_blank" class="btn btn-premium-outline">Apply Now</a>
                                 </div>
                             </div>
-                        </div>
-                        <div>
-                            <button class="btn btn-outline-primary btn-sm me-2" onclick="loadJobDetail(${index})">View Analysis</button>
-                            <a href="${job.url}" target="_blank" class="btn btn-primary btn-sm">Apply</a>
+
+                            <div class="match-score-wrapper">
+                                <div class="match-score-circle">
+                                    <span class="match-score-value">${scorePercent}%</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 `;
             });
-            html += '</div></div>';
+            html += '</div>';
         }
 
         container.innerHTML = html;
@@ -785,7 +812,7 @@ async function loadJobDetail(index) {
                  <div class="d-flex flex-wrap gap-2">
                     ${(detail.missing_skills || []).map(s =>
             `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 p-2">
-                            ${s.skill}
+                            ${s.skill || s.name || s}
                          </span>`
         ).join('') || '<span class="text-muted">No missing skills detected!</span>'}
                 </div>
@@ -804,55 +831,300 @@ async function loadSkills() {
     const container = document.getElementById('skillsList');
     if (!container) return;
 
+    container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+
     try {
         const response = await fetch('/user-skills');
         const skills = await response.json();
+        const normalizedSkills = Array.isArray(skills) ? skills.map(skill => ({
+            name: skill.name,
+            is_core: Boolean(skill.is_core),
+            tag: skill.tag || ''
+        })) : [];
+
+        if (!skills || skills.length === 0) {
+            container.innerHTML = `
+                <div class="alert alert-warning border-0 shadow-sm rounded-4 d-flex align-items-start gap-3">
+                    <i class="bi bi-info-circle-fill fs-4"></i>
+                    <div>
+                        <div class="fw-bold mb-1">No skills detected yet</div>
+                        <div class="mb-2">Upload and scan your CV to extract your skill profile.</div>
+                        <a href="/upload_page" class="btn btn-primary btn-sm rounded-pill px-3">
+                            <i class="bi bi-upload me-1"></i>Scan CV
+                        </a>
+                    </div>
+                </div>
+            `;
+            return;
+        }
 
         let html = `
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h3 class="fw-bold mb-0">Extracted Skill Profile</h3>
-                <button class="btn btn-outline-secondary btn-sm" onclick="window.location.href='/upload_page'">
+                <h3 class="fw-bold mb-0">Extracted Skill Profile <span class="badge bg-primary rounded-pill ms-2">${skills.length}</span></h3>
+                <a href="/upload_page" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-arrow-left me-2"></i>New CV
-                </button>
+                </a>
             </div>
-            <div class="d-flex flex-wrap gap-2 p-3 bg-light rounded">
+            <div class="d-flex flex-wrap gap-2">
         `;
         skills.forEach(skill => {
             const className = skill.is_core ? 'badge bg-primary' : 'badge bg-secondary';
-            html += `<span class="${className} p-2">${skill.name}</span>`;
+            html += `<span class="${className} p-2 rounded-3">${skill.name}</span>`;
         });
-        html += '</div>';
 
+        html += '</div>';
         container.innerHTML = html;
+
     } catch (error) {
+        container.innerHTML = `
+            <div class="alert alert-danger border-0 rounded-4">
+                <i class="bi bi-exclamation-triangle me-2"></i>Failed to load skills. Please try again.
+            </div>
+        `;
         console.error(error);
     }
 }
 
 async function loadStatistics() {
-    // Re-use logic or just leave blank for now as it triggers on tab click
     const container = document.getElementById('statisticsDiv');
+    if (!container) return;
+
+    container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+
     try {
         const response = await fetch('/statistics');
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || 'Failed to load statistics');
+        }
         const stats = await response.json();
         container.innerHTML = `
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h3 class="fw-bold mb-0">Database Statistics</h3>
-                <button class="btn btn-outline-secondary btn-sm" onclick="window.location.href='/upload_page'">
+                <a href="/upload_page" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-arrow-left me-2"></i>New CV
-                </button>
+                </a>
             </div>
             <div class="row g-4">
-                <div class="col-md-3">
-                    <div class="card p-3 text-center border-0 shadow-sm">
+                <div class="col-md-3 col-6">
+                    <div class="card p-3 text-center border-0 shadow-sm rounded-4">
                         <div class="display-6 fw-bold text-primary">${stats.total_jobs}</div>
-                        <div class="small text-muted">Total Jobs</div>
+                        <div class="small text-muted mt-1">Total Jobs</div>
                     </div>
                 </div>
-                <!-- ... other stats ... -->
+                <div class="col-md-3 col-6">
+                    <div class="card p-3 text-center border-0 shadow-sm rounded-4">
+                        <div class="display-6 fw-bold text-success">${stats.user_skills}</div>
+                        <div class="small text-muted mt-1">Your Skills</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="card p-3 text-center border-0 shadow-sm rounded-4">
+                        <div class="display-6 fw-bold text-warning">${stats.avg_job_skills}</div>
+                        <div class="small text-muted mt-1">Avg Skills/Job</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="card p-3 text-center border-0 shadow-sm rounded-4">
+                        <div class="display-6 fw-bold text-info">${stats.median_job_skills}</div>
+                        <div class="small text-muted mt-1">Median Skills/Job</div>
+                    </div>
+                </div>
             </div>
         `;
-    } catch (e) { }
+    } catch (e) {
+        if (!container) return;
+        container.innerHTML = `
+            <div class="alert alert-warning border-0 shadow-sm rounded-4 d-flex align-items-start gap-3">
+                <i class="bi bi-info-circle-fill fs-4"></i>
+                <div>
+                    <div class="fw-bold mb-1">Scan your CV first</div>
+                    <div class="mb-2">${e.message || 'Upload and scan your CV to see personalized statistics.'}</div>
+                    <a href="/upload_page" class="btn btn-primary btn-sm rounded-pill px-3">
+                        <i class="bi bi-upload me-1"></i>Scan CV
+                    </a>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// Enhanced Skills Profile - Detailed Profile Page
+async function loadEnhancedSkillsProfile() {
+    const container = document.getElementById('skillsProfile');
+    if (!container) return;
+
+    try {
+        const [skillsResponse, cvResponse] = await Promise.all([
+            fetch('/user-skills'),
+            fetch('/api/cv-full')
+        ]);
+
+        const skills = await skillsResponse.json();
+        const cvData = await cvResponse.json();
+
+        if (!cvData.active || !skills || skills.length === 0) {
+            container.innerHTML = renderEmptyState();
+            return;
+        }
+
+        const normalizedSkills = Array.isArray(skills) ? skills.map(skill => ({
+            name: skill.name,
+            is_core: Boolean(skill.is_core),
+            probability: skill.probability || 0.5
+        })) : [];
+
+        const coreSkills = normalizedSkills.filter(s => s.is_core).sort((a, b) => b.probability - a.probability);
+        const supportingSkills = normalizedSkills.filter(s => !s.is_core).sort((a, b) => b.probability - a.probability);
+        
+        const avgConfidence = Math.round(
+            (normalizedSkills.reduce((sum, s) => sum + s.probability, 0) / normalizedSkills.length) * 100
+        );
+
+        const growthSuggestions = generateGrowthSuggestions(normalizedSkills, cvData.role);
+
+        const html = `
+            <div class="sp-hero sp-fade-in">
+                <div class="sp-hero-content">
+                    <div class="sp-hero-badge"><i class="bi bi-person-check"></i> Personalized Profile</div>
+                    <h1 class="sp-hero-title">${escapeHtml(cvData.role || 'Professional')}</h1>
+                    <div class="sp-hero-meta">
+                        ${cvData.city ? `<div class="sp-hero-meta-item"><i class="bi bi-geo-alt"></i>${escapeHtml(cvData.city)}</div>` : ''}
+                        ${cvData.email ? `<div class="sp-hero-meta-item"><i class="bi bi-envelope"></i>${escapeHtml(cvData.email)}</div>` : ''}
+                        <div class="sp-hero-meta-item"><i class="bi bi-file-earmark-text"></i>${escapeHtml(cvData.filename)}</div>
+                    </div>
+
+                    <div class="sp-stats-row">
+                        <div class="sp-stat-card">
+                            <div class="sp-stat-value">${normalizedSkills.length}</div>
+                            <div class="sp-stat-label">Total Skills</div>
+                        </div>
+                        <div class="sp-stat-card">
+                            <div class="sp-stat-value">${coreSkills.length}</div>
+                            <div class="sp-stat-label">Core Skills</div>
+                        </div>
+                        <div class="sp-stat-card">
+                            <div class="sp-stat-value">${avgConfidence}%</div>
+                            <div class="sp-stat-label">Confidence</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sp-actions sp-fade-in" style="animation-delay: 0.1s">
+                <button class="sp-action-btn sp-action-primary" onclick="window.location.href='/results-page'">
+                    <i class="bi bi-briefcase"></i> View Job Matches
+                </button>
+                <button class="sp-action-btn sp-action-success" onclick="window.location.href='/interview-page'">
+                    <i class="bi bi-chat-dots"></i> Practice Interview
+                </button>
+                <button class="sp-action-btn sp-action-outline" onclick="window.location.href='/upload_page'">
+                    <i class="bi bi-arrow-repeat"></i> Update CV
+                </button>
+            </div>
+
+            <div class="sp-section sp-fade-in" style="animation-delay: 0.2s">
+                <div class="sp-section-header">
+                    <div class="sp-section-icon sp-section-icon-core"><i class="bi bi-star-fill"></i></div>
+                    <h2 class="sp-section-title">Core Competencies</h2>
+                    <span class="sp-section-count">${coreSkills.length} Detected</span>
+                </div>
+                <div class="sp-skill-grid">
+                    ${coreSkills.map(skill => renderSkillCard(skill, 'core')).join('')}
+                </div>
+            </div>
+
+            <div class="sp-section sp-fade-in" style="animation-delay: 0.3s">
+                <div class="sp-section-header">
+                    <div class="sp-section-icon sp-section-icon-support"><i class="bi bi-lightning-fill"></i></div>
+                    <h2 class="sp-section-title">Supporting Skills</h2>
+                    <span class="sp-section-count">${supportingSkills.length} Detected</span>
+                </div>
+                <div class="sp-skill-grid">
+                    ${supportingSkills.map(skill => renderSkillCard(skill, 'support')).join('')}
+                </div>
+            </div>
+
+            <div class="sp-section sp-fade-in" style="animation-delay: 0.4s">
+                <div class="sp-section-header">
+                    <div class="sp-section-icon sp-section-icon-growth"><i class="bi bi-graph-up-arrow"></i></div>
+                    <h2 class="sp-section-title">Growth Opportunities</h2>
+                </div>
+                <div class="row g-3">
+                    ${growthSuggestions.map(skill => `
+                        <div class="col-md-4">
+                            <div class="sp-growth-card">
+                                <div class="sp-growth-icon"><i class="bi bi-plus-lg"></i></div>
+                                <div>
+                                    <div class="sp-growth-name">${escapeHtml(skill)}</div>
+                                    <div class="sp-growth-desc">Recommended for ${escapeHtml(cvData.role || 'you')}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = html;
+
+    } catch (error) {
+        console.error('Error loading skills profile:', error);
+        container.innerHTML = `
+            <div class="sp-empty sp-fade-in">
+                <div class="sp-empty-icon text-danger"><i class="bi bi-exclamation-circle"></i></div>
+                <h2 class="sp-empty-title">Oops! Something went wrong</h2>
+                <p class="sp-empty-text">We couldn't load your skill profile. Please ensure your CV is processed correctly.</p>
+                <button class="sp-empty-btn" onclick="window.location.reload()">Retry Loading</button>
+            </div>
+        `;
+    }
+}
+
+function renderSkillCard(skill, type) {
+    const pct = Math.round(skill.probability * 100);
+    const dash = 125.6 - (125.6 * pct / 100);
+    
+    return `
+        <div class="sp-skill-card sp-card-${type}">
+            <div class="sp-radial">
+                <svg viewBox="0 0 46 46">
+                    <circle class="sp-radial-track" cx="23" cy="23" r="20" />
+                    <circle class="sp-radial-bar sp-radial-bar-${type}" cx="23" cy="23" r="20" 
+                        style="stroke-dasharray: 125.6; stroke-dashoffset: ${dash}" />
+                </svg>
+                <div class="sp-radial-value">${pct}%</div>
+            </div>
+            <div class="sp-skill-body">
+                <div class="sp-skill-name" title="${escapeHtml(skill.name)}">${escapeHtml(skill.name)}</div>
+                <span class="sp-skill-tag sp-tag-${type}">${type}</span>
+            </div>
+        </div>
+    `;
+}
+
+function renderEmptyState() {
+    return `
+        <div class="sp-empty sp-fade-in">
+            <div class="sp-empty-icon"><i class="bi bi-file-earmark-pdf"></i></div>
+            <h2 class="sp-empty-title">Profile Not Found</h2>
+            <p class="sp-empty-text">Upload your CV to unlock your personalized AI-powered skill profile and matching analysis.</p>
+            <button class="sp-empty-btn" onclick="window.location.href='/upload_page'">
+                <i class="bi bi-upload me-2"></i>Upload Your CV
+            </button>
+        </div>
+    `;
+}
+
+function generateGrowthSuggestions(currentSkills, role) {
+    const currentNames = new Set(currentSkills.map(s => s.name.toLowerCase()));
+    let pool = ['Problem Solving', 'Teamwork', 'Communication', 'Project Management', 'Agile', 'Leadership', 'Data Analysis'];
+    
+    const r = (role || '').toLowerCase();
+    if (r.includes('dev') || r.includes('eng')) pool = ['Cloud Computing', 'Docker', 'System Design', 'CI/CD', 'Security', 'Testing'];
+    if (r.includes('sale') || r.includes('market')) pool = ['Digital Marketing', 'SEO', 'CRM', 'Negotiation', 'Social Media', 'Analytics'];
+    
+    return pool.filter(s => !currentNames.has(s.toLowerCase())).slice(0, 6);
 }
 
 function showToast(title, message, type = 'primary') {
@@ -1453,21 +1725,37 @@ function renderJobsBatch(jobs) {
     if (!resultsDiv) return;
 
     jobs.forEach(job => {
+        const logoSeed = encodeURIComponent(job.company || 'Job');
+        const logoUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${logoSeed}&backgroundColor=f8fafc,e2e8f0&fontSize=40&fontWeight=700`;
+        
         const card = `
-            <div class="col-md-6 mb-4">
-                <div class="card h-100 border-0 shadow-sm rounded-4 hover-lift">
+            <div class="col-md-6 col-xl-4 mb-4">
+                <div class="card h-100 border-0 shadow-sm rounded-4 hover-lift transition-all overflow-hidden">
                     <div class="card-body p-4 d-flex flex-column">
-                        <div class="d-flex justify-content-between mb-3">
-                            <span class="badge bg-primary-soft text-primary rounded-pill px-3">${job.type}</span>
-                            <span class="text-muted small"><i class="bi bi-geo-alt me-1"></i>${job.location}</span>
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="company-logo rounded-3 p-2 bg-light d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.05);">
+                                <img src="${logoUrl}" class="img-fluid rounded-2" alt="logo">
+                            </div>
+                            <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-3 py-2 fw-bold small">
+                                ${job.type || 'Full-time'}
+                            </span>
                         </div>
-                        <h5 class="fw-bold mb-1">${job.title}</h5>
-                        <p class="text-muted small mb-3">${job.company}</p>
-                        <div class="d-flex justify-content-between align-items-center mt-auto">
+                        
+                        <h5 class="fw-bold mb-1 text-truncate-2" title="${job.title}" style="height: 3rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${job.title}</h5>
+                        <p class="text-muted small mb-3">
+                            <span class="fw-bold text-dark">${job.company}</span> • <i class="bi bi-geo-alt me-1"></i>${job.location}
+                        </p>
+                        
+                        <div class="d-flex justify-content-between align-items-center mt-auto pt-3 border-top">
                             <div class="text-primary fw-bold">${job.salary}</div>
-                            <a href="${job.url}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3">
-                                <i class="bi bi-box-arrow-up-right me-1"></i>Learn More
-                            </a>
+                            <div class="d-flex gap-2">
+                                <a href="/job-detail/${job.id}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                    Analysis
+                                </a>
+                                <a href="${job.url}" target="_blank" class="btn btn-sm btn-primary rounded-pill px-3">
+                                    Apply
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
